@@ -3,13 +3,10 @@
 # Based on PlotSpec.py
 
 # TO DO
-# Sort objects by # significant peaks				Not here
-# Save objects that have at least 1 peak below 9000 A		XXX
-# Plots in 1 folder, plate-mjd-fiber.png			XXX
-# Reject 2 sigma around emission lines instead of 10 A		XXX
-
-
-
+# Sort objects by # significant peaks
+# Optimize func
+# Optimize detected.append
+# Redundance leastsq line 193-206
 
 # Imports
 import numpy as n
@@ -25,10 +22,7 @@ from matplotlib import rcParams
 import os
 import errno
 
-
-
 #-----------------------------------------------------------------------------------------------------
-#
 # Function definitions
 
 # Generate a Gaussian around x_0 with amplitude A and variance var
@@ -49,32 +43,16 @@ def func(params, xdata, ydata, sqrtivar, x0, llimit, ulimit):
 			return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1]))*sqrtivar + 10 
 	return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1]))*sqrtivar
 
-
 # Check if x0 is near any emission line redshifted by z
 def nearline(x0, zline, fiberid, z, mjd, plate):
-	t = datetime.datetime.now()
-	
 	match1 = n.logical_and((x0 - zline['linewave']*(1+z)) < 2*zline['lineew'], zline['linearea']!=0)
 	match2 = n.logical_and(zline['fiberid']==fiberid,zline['mjd']==int(mjd))
 	match3 = n.logical_and(zline['plate']==int(plate), zline['linearea']/zline['linearea_err'] > 2)
 	match4 = n.logical_and(match1,n.logical_and(match2,match3))
 	if (n.sum(match4)>0):
-		#test = True 
-		print datetime.datetime.now() - t
 		return True
 	else:
-		#test = False
-		print datetime.datetime.now() - t
 		return False
-	#for i in n.arange(len(zline['fiberid'])):
-		#if ((x0 - zline['linewave'][i]*(1+z)) < 2*zline['lineew'][i] and zline['linearea'][i]!=0 and 
-				#zline['fiberid'][i]==fiberid and zline['mjd'][i]==int(mjd) and
-				#zline['plate'][i]==int(plate) and zline['linearea'][i]/zline['linearea_err'][i] > 2):
-			#print test == True, '\n'
-			#return True	
-	#print test==False, '\n'
-	#return False
-
 
 # Check if a path exists, if not make it
 def make_sure_path_exists(path):
@@ -103,13 +81,12 @@ plate_mjd = [line.strip() for line in open('test_mjd.txt')]
 			#plate_mjd[i] = [int(plate_mjd[i]) , platelist['mjd'][k]]
 			#break
 
-
 plate = 0
 fiberid = [0]
 peak_number = 0
 i = 0
 # Set topdir:
-topdir = '.'
+topdir = '..'
 
 f = open(topdir + '/candidates.txt','a')
 f.write('RA DEC plate mjd fiber peak_wavelength peak_amp peak_amp_err peak_width peak_width_err\n')
@@ -162,6 +139,7 @@ for j in n.arange(len(plate_mjd)):
 	hdulist.close()
 	hdulist = 0
 	##### PlotSpec ends here 
+	#-----------------------------------------------------------------------------------------------------
 	
 	reduced_flux = flux - synflux
 	detected = []
@@ -171,8 +149,7 @@ for j in n.arange(len(plate_mjd)):
 	llimit = [0, 10]
 	ulimit = [1000, 2500]
 	
-	
-	# Masks
+	# Masks atmosphere
 	ivar[:,542:551] = 0 # Hg line
 	ivar[:,868:873] = 0 # Hg line
 	ivar[:,1847:1852] = 0 # Hg line
@@ -182,9 +159,8 @@ for j in n.arange(len(plate_mjd)):
 	ivar[:,423:428] = 0 # Ca absorption
 	ivar[:,460:467] = 0 # Ca absorption
 	
-	
 	startTime = datetime.datetime.now()
-	#print ' '*60, '\r', "initialization done\r",
+
 	i = 0
 	# Loop over objects
 	for i in n.arange(len(flux[:,0])):
@@ -195,16 +171,11 @@ for j in n.arange(len(plate_mjd)):
 		peak_number = len(peaks)
 		below_9000 = False
 		
-		
 		while (peak_number > -1):
-			#print ' '*60, '\r', "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number+1, "\r",
+
 			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number, "\n",
-			#for k in n.arange(len(ivar[i,:])):
-			#	sqrtivar[i,k]=math.sqrt(ivar[i,k])
-			sqrtivar = n.sqrt(ivar)
-			### Test for new solution sqrtivar
-			#print '\n', sum(sqrtivar[i,:] == sqrtivar2[i,:])== len(sqrtivar[i,:])
 			
+			sqrtivar[i,:] = n.sqrt(ivar[i,:])
 			
 			# Initial guess
 			init = [1, 30]
@@ -214,15 +185,10 @@ for j in n.arange(len(plate_mjd)):
 			for k in n.arange(len(wave)):
 				if (abs(reduced_flux[i,k]*sqrtivar[i,k]) > 5):
 					sig_points.append(k)
-				
 			
-			# Loop over all data points
+			# Loop over all data points to find best peak match 
 			for k in n.arange(len(sig_points)):
 				x0=wave[sig_points[k]]
-				#print ' '*60, '\r', "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number+1, "| ", len(sig_points)-k, " points left\r",
-				#print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number+1, "| ", len(sig_points)-k, " points left\n",
-				
-				
 				cov=0
 				params, cov, infodict, mesg, ier = leastsq(func, init,
 					 args=(wave, reduced_flux[i,:] * (ivar[i,:]>0), sqrtivar[i,:], x0, llimit, ulimit),
@@ -234,13 +200,13 @@ for j in n.arange(len(plate_mjd)):
 				if (chisq<chisq_saved):
 					x0_saved = x0
 					chisq_saved = chisq
-					#print chisq, x0, 'saved'
-					
+						
 			# Gaussian fit around x0_saved
 			params, cov, infodict, mesg, ier = leastsq(func, init, 
 					args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0_saved, llimit, ulimit), 
 					full_output=True)
 			
+			# S/N criterion?	
 			if (cov is None or abs(chisq_saved*params[0]/math.sqrt(cov[0,0])) < 4):
 				if (peak_number == 0):
 					#print 'No peak found'
@@ -249,43 +215,34 @@ for j in n.arange(len(plate_mjd)):
 				else:
 					peak_number = -1
 					continue
-
 			
+			# Check if candidate emission line is not from foreground 
 			if (nearline(x0_saved, zline, fiberid[i], z[i], int(mjd), int(plate))):
+				# Set ivar = 0 for points around peaks
 				delta = 2*int((math.log(1 + math.sqrt(params[1])/x0_saved)/math.log(10)) / c1)
 				if (delta == 0):
 					delta=1
 				center = int(((math.log(x0_saved)/math.log(10))-c0)/c1)
 				ivar[i][max(center-delta,0):min(center+delta,len(sqrtivar[i,:])-1)+1] = 0
 				continue
+			# 9000 Angstrom cut 
 			if (x0_saved < 9000):
 				below_9000 = True
 			
-			#print 'Peak number', peak_number+1
-			
+			# Save emission line 
 			peaks.append([x0_saved, params[0], params[1]])
-			#chisq = sum((((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]))**2)*ivar[i,:]))/(len(wave)-3)
 			peaks_err.append([math.sqrt(cov[0,0]*chisq_saved), math.sqrt(cov[1,1]*chisq_saved)])
 			
-			
-			#print 'x0 = ', x0_saved
-			#print 'A = ', params[0], 'err ', math.sqrt(cov[0,0]*chisq)
-			#print 'var = ', params[1], 'sigma = ', math.sqrt(params[1]), 'err ', math.sqrt(math.sqrt(cov[1,1]*chisq))
-			#print 'chi_sq = ', chisq
-			#print 'cov = ', cov * chisq
-			
-			# Set ivar = 0 for points around peaks
+			# Set ivar = 0 for points around peak/emission line found
 			delta = 2*int((math.log(1 + math.sqrt(params[1])/x0_saved)/math.log(10)) / c1)
 			if (delta == 0):
 				delta=1
-			
 			center = int(((math.log(x0_saved)/math.log(10))-c0)/c1)
 			ivar[i][max(center-delta,0):min(center+delta,len(sqrtivar[i,:])-1)+1] = 0
 			
 			peak_number = peak_number+1
-		
-		
-		
+			
+		#Graphs
 		p.subplot(2,1,1)
 		p.plot(wave, flux[i,:] * (ivar_copy[i,:]>0), 'k', hold=False)
 		p.plot(wave, synflux[i,:], 'g', hold=True)
@@ -302,6 +259,7 @@ for j in n.arange(len(plate_mjd)):
 		p.xlabel('$Wavelength\, (Angstroms)$')
 		p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
 		
+		#Save candidate coordinates and peaks
 		fit=0
 		if (len(peaks)>1 and below_9000):
 			for k in n.arange(len(peaks)):

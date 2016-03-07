@@ -4,9 +4,7 @@
 
 # TO DO
 # Sort objects by # significant peaks
-# Optimize func
-# Optimize detected.append
-# Redundance leastsq line 193-206
+
 
 # Imports
 import numpy as n
@@ -63,6 +61,8 @@ def make_sure_path_exists(path):
             raise
 
 #-----------------------------------------------------------------------------------------------------
+# Set topdir:
+topdir = '..'
 
 #print " "*60, "\ropening platelist.fits\r",
 #hdulist = pf.open('platelist.fits')
@@ -73,7 +73,7 @@ def make_sure_path_exists(path):
 ## import list of plates to analyze
 #print " "*60, "\rimporting list of plates\r",
 #plate_mjd = [line.strip() for line in open('Stripe82.platelist.txt')]
-plate_mjd = [line.strip() for line in open('test_mjd.txt')]
+plate_mjd = [line.strip() for line in open(topdir + '/fits_files/test_mjd.txt')]
 
 #for i in n.arange(len(plate_mjd)):
 	#for k in n.arange(len(platelist['plate'])):
@@ -85,8 +85,6 @@ plate = 0
 fiberid = [0]
 peak_number = 0
 i = 0
-# Set topdir:
-topdir = '..'
 
 f = open(topdir + '/candidates.txt','a')
 f.write('RA DEC plate mjd fiber peak_wavelength peak_amp peak_amp_err peak_width peak_width_err\n')
@@ -190,6 +188,7 @@ for j in n.arange(len(plate_mjd)):
 			for k in n.arange(len(sig_points)):
 				x0=wave[sig_points[k]]
 				cov=0
+				#Gaussian fit around x_0
 				params, cov, infodict, mesg, ier = leastsq(func, init,
 					 args=(wave, reduced_flux[i,:] * (ivar[i,:]>0), sqrtivar[i,:], x0, llimit, ulimit),
 					 full_output=True)
@@ -198,16 +197,13 @@ for j in n.arange(len(plate_mjd)):
 				chisq = sum(residue_squared)
 				
 				if (chisq<chisq_saved):
+					params_saved = params
+					cov_saved = cov
 					x0_saved = x0
 					chisq_saved = chisq
-						
-			# Gaussian fit around x0_saved
-			params, cov, infodict, mesg, ier = leastsq(func, init, 
-					args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0_saved, llimit, ulimit), 
-					full_output=True)
-			
+									
 			# S/N criterion?	
-			if (cov is None or abs(chisq_saved*params[0]/math.sqrt(cov[0,0])) < 4):
+			if (cov_saved is None or abs(chisq_saved*params[0]/math.sqrt(cov[0,0])) < 4):
 				if (peak_number == 0):
 					#print 'No peak found'
 					peak_number = -2
@@ -219,7 +215,7 @@ for j in n.arange(len(plate_mjd)):
 			# Check if candidate emission line is not from foreground 
 			if (nearline(x0_saved, zline, fiberid[i], z[i], int(mjd), int(plate))):
 				# Set ivar = 0 for points around peaks
-				delta = 2*int((math.log(1 + math.sqrt(params[1])/x0_saved)/math.log(10)) / c1)
+				delta = 2*int((math.log(1 + math.sqrt(params_saved[1])/x0_saved)/math.log(10)) / c1)
 				if (delta == 0):
 					delta=1
 				center = int(((math.log(x0_saved)/math.log(10))-c0)/c1)
@@ -230,11 +226,11 @@ for j in n.arange(len(plate_mjd)):
 				below_9000 = True
 			
 			# Save emission line 
-			peaks.append([x0_saved, params[0], params[1]])
+			peaks.append([x0_saved, params_saved[0], params_saved[1]])
 			peaks_err.append([math.sqrt(cov[0,0]*chisq_saved), math.sqrt(cov[1,1]*chisq_saved)])
 			
 			# Set ivar = 0 for points around peak/emission line found
-			delta = 2*int((math.log(1 + math.sqrt(params[1])/x0_saved)/math.log(10)) / c1)
+			delta = 2*int((math.log(1 + math.sqrt(params_saved[1])/x0_saved)/math.log(10)) / c1)
 			if (delta == 0):
 				delta=1
 			center = int(((math.log(x0_saved)/math.log(10))-c0)/c1)

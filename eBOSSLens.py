@@ -87,7 +87,7 @@ peak_number = 0
 i = 0
 
 f = open(topdir + '/candidates.txt','a')
-f.write('RA DEC plate mjd fiber peak_wavelength peak_amp peak_amp_err peak_width peak_width_err\n')
+f.write('RA DEC plate mjd fiber peak_wavelength peak_amp peak_amp_err peak_width peak_width_err  peak_number\n')
 f.close()
 
 
@@ -141,7 +141,6 @@ for j in n.arange(len(plate_mjd)):
 	
 	reduced_flux = flux - synflux
 	detected = []
-	detected_err = []
 	sqrtivar=copy.deepcopy(ivar)
 	
 	llimit = [0, 10]
@@ -168,8 +167,9 @@ for j in n.arange(len(plate_mjd)):
 		peaks_err = []
 		peak_number = len(peaks)
 		below_9000 = False
+		searchpeaks = True
 		
-		while (peak_number > -1):
+		while (searchpeaks == True):
 
 			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number, "\n",
 			
@@ -209,16 +209,17 @@ for j in n.arange(len(plate_mjd)):
 			if (cov is None or abs(chisq_saved*params[0]/math.sqrt(cov[0,0])) < 4):
 				if (peak_number == 0):
 					#print 'No peak found'
-					peak_number = -2
+					#peak_number = -2
+					searchpeaks = False
 					continue
 				else:
-					peak_number = -1
+					#peak_number = -1
+					searchpeaks = False
 					continue
 			
 			# Check if candidate emission line is not from foreground 
 			if (nearline(x0_saved, zline, fiberid[i], z[i], int(mjd), int(plate))):
 				# Set ivar = 0 for points around peaks
-				print x0_saved
 				delta = 2*int((math.log(1 + math.sqrt(params[1])/x0_saved)/math.log(10)) / c1)
 				if (delta == 0):
 					delta=1
@@ -264,8 +265,7 @@ for j in n.arange(len(plate_mjd)):
 		if (len(peaks)>1 and below_9000):
 			for k in n.arange(len(peaks)):
 				detected.append([RA[i], DEC[i], int(plate), int(mjd), fiberid[i],
-						peaks[k][0], peaks[k][1], math.sqrt(peaks[k][2])])
-				detected_err.append([peaks_err[k][0], math.sqrt(peaks_err[k][1])])
+						peaks[k][0], peaks[k][1], math.sqrt(peaks[k][2]), peaks_err[k][0], math.sqrt(peaks_err[k][1]), peak_number])
 				fit = fit + gauss(wave, x_0 = peaks[k][0] , A=peaks[k][1], var=peaks[k][2])
 				p.annotate(str(int(peaks[k][1]/peaks_err[k][0]))+' sig \n|',
 						xy=(peaks[k][0], reduced_flux[i,int(((math.log(peaks[k][0])/math.log(10))-c0)/c1)]),
@@ -278,11 +278,12 @@ for j in n.arange(len(plate_mjd)):
 			#p.show()
 	
 	print 'Time taken ', (datetime.datetime.now() - startTime)
-	
+	detected = sorted(detected, key = lambda obj : obj[10])
 	f = open(topdir + '/candidates.txt','a')
-	for i in n.arange(len(detected)):
-		f.write(str(detected[i][0])+ ' '+ str(detected[i][1])+ ' '+ str(detected[i][2])+ ' '+ 
-			str(detected[i][3])+ ' '+ str(detected[i][4])+' '+ str(detected[i][5])+ ' '+ 
-			str(detected[i][6])+ ' '+ str(detected_err[i][0])+' ' + 
-			str(detected[i][7])+ ' '+ str(detected_err[i][1])+ '\n')
+	for item in detected:
+		f.write("\n" + str(item))
+		#f.write(str(detected[i][0])+ ' '+ str(detected[i][1])+ ' '+ str(detected[i][2])+ ' '+ 
+			#str(detected[i][3])+ ' '+ str(detected[i][4])+' '+ str(detected[i][5])+ ' '+ 
+			#str(detected[i][6])+ ' '+ str(detected[i][8])+' ' + 
+			#str(detected[i][7])+ ' '+ str(detected[i][9])+ ' ' + str(peak_number) + '\n')
 	f.close()

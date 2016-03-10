@@ -170,23 +170,25 @@ for j in n.arange(len(plate_mjd)):
 		searchpeaks = True
 		
 		while (searchpeaks == True):
-
-			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number, "\n",
+			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number, "\n",		
 			
 			sqrtivar[i,:] = n.sqrt(ivar[i,:])
-			
+	
 			# Initial guess
 			init = [1, 30]
 			chisq_saved=1000
 			x0_saved=0
-			sig_points = []
-			for k in n.arange(len(wave)):
-				if (abs(reduced_flux[i,k]*sqrtivar[i,k]) > 5):
-					sig_points.append(k)
 			
-			# Loop over all data points to find best peak match 
-			for k in n.arange(len(sig_points)):
-				x0=wave[sig_points[k]]
+			#Old method search for peaks
+			#sig_points = []
+			#for k in n.arange(len(wave)):
+				#if (abs(reduced_flux[i,k]*sqrtivar[i,k]) > 5):
+					#sig_points.append(k)
+			#Test for concordance of two methods
+			#print n.all([wave[sig_points],[x0 for x0,test in zip(wave,abs(reduced_flux[i,:]*sqrtivar[i,:])) if test>5]])
+			
+			# Loop over all data points to find best peak match, optimized
+			for x0 in [x0 for x0,test in zip(wave,abs(reduced_flux[i,:]*sqrtivar[i,:])) if test>5]:
 				cov=0
 				#Gaussian fit around x_0
 				params, cov, infodict, mesg, ier = leastsq(func, init,

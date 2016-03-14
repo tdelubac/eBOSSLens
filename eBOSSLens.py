@@ -126,6 +126,7 @@ for j in n.arange(len(plate_mjd)):
 	DEC = hdulist[1].data.field('PLUG_DEC')
 	obj_class = hdulist[1].data.field('CLASS')
 	z = hdulist[1].data.field('Z')
+	zwarning = hdulist[1].data.field('ZWARNING')
 	z_err = hdulist[1].data.field('Z_ERR')
 	hdulist.close()
 	hdulist = 0
@@ -157,16 +158,16 @@ for j in n.arange(len(plate_mjd)):
 
 	# Loop over objects
 	for i in n.arange(len(flux[:,0])):
-		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   '):
+		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or zwarning[i]!=0):
 			continue
 		peaks = []
 		peaks_err = []
 		peak_number = len(peaks)
 		below_9000 = False
 		searchpeaks = True
-		
+
 		while (searchpeaks == True):
-			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number, "\n",		
+			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number, 'zwarning', zwarning[i],"\n",		
 			
 			sqrtivar[i,:] = n.sqrt(ivar[i,:])
 			

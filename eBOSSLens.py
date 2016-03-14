@@ -28,7 +28,6 @@ def gauss(x,x_0,A,var):
 	y = A*n.exp( (-(x-x_0)**2) / (2*var) )
 	return y
 
-
 # The function whose square is to be minimised.
 # params = list of parameters tuned to minimise function.
 # Further arguments:
@@ -83,8 +82,6 @@ plate_mjd = [line.strip() for line in open(topdir + '/fits_files/test_mjd.txt')]
 
 plate = 0
 fiberid = [0]
-peak_number = 0
-i = 0
 
 f = open(topdir + '/candidates.txt','a')
 f.write('RA DEC plate mjd fiber peak_wavelength peak_amp peak_amp_err peak_width peak_width_err  peak_number\n')
@@ -158,7 +155,6 @@ for j in n.arange(len(plate_mjd)):
 	
 	startTime = datetime.datetime.now()
 
-	i = 0
 	# Loop over objects
 	for i in n.arange(len(flux[:,0])):
 		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   '):
@@ -173,10 +169,10 @@ for j in n.arange(len(plate_mjd)):
 			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number, "\n",		
 			
 			sqrtivar[i,:] = n.sqrt(ivar[i,:])
-	
+			
 			# Initial guess
 			init = [1, 30]
-			chisq_saved=1000
+			chisq_saved = 1000
 			x0_saved=0
 			
 			#Old method search for peaks
@@ -188,7 +184,8 @@ for j in n.arange(len(plate_mjd)):
 			#print n.all([wave[sig_points],[x0 for x0,test in zip(wave,abs(reduced_flux[i,:]*sqrtivar[i,:])) if test>5]])
 			
 			# Loop over all data points to find best peak match, optimized
-			for x0 in [x0 for x0,test in zip(wave,abs(reduced_flux[i,:]*sqrtivar[i,:])) if test>5]:
+			peak_candidates = [x0 for x0,test in zip(wave,abs(reduced_flux[i,:]*sqrtivar[i,:])) if test>5]
+			for x0 in peak_candidates:
 				cov=0
 				#Gaussian fit around x_0
 				params, cov, infodict, mesg, ier = leastsq(func, init,
@@ -209,15 +206,8 @@ for j in n.arange(len(plate_mjd)):
 								
 			# S/N criterion?	
 			if (cov is None or abs(chisq_saved*params[0]/math.sqrt(cov[0,0])) < 4):
-				if (peak_number == 0):
-					#print 'No peak found'
-					#peak_number = -2
-					searchpeaks = False
-					continue
-				else:
-					#peak_number = -1
-					searchpeaks = False
-					continue
+				searchpeaks = False
+				continue
 			
 			# Check if candidate emission line is not from foreground 
 			if (nearline(x0_saved, zline, fiberid[i], z[i], int(mjd), int(plate))):
@@ -256,8 +246,7 @@ for j in n.arange(len(plate_mjd)):
 		
 		p.subplot(2,1,2)
 		p.plot(wave, reduced_flux[i,:] *(ivar_copy[i,:]>0),'k', hold=False)
-		for k in n.arange(len(ivar_copy[i,:])):
-			sqrtivar[i,k]=math.sqrt(ivar_copy[i,k])
+		sqrtivar[i,:]=n.sqrt(ivar_copy[i,:])
 		#p.errorbar(wave, reduced_flux[i,:], yerr= 1.0/sqrtivar[i,:])
 		p.xlabel('$Wavelength\, (Angstroms)$')
 		p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
@@ -267,7 +256,7 @@ for j in n.arange(len(plate_mjd)):
 		if (len(peaks)>1 and below_9000):
 			for k in n.arange(len(peaks)):
 				detected.append([RA[i], DEC[i], int(plate), int(mjd), fiberid[i],
-						peaks[k][0], peaks[k][1], math.sqrt(peaks[k][2]), peaks_err[k][0], math.sqrt(peaks_err[k][1]), peak_number])
+						peaks[k][0], peaks[k][1], math.sqrt(peaks[k][2]), peaks_err[k][0], n.sqrt(peaks_err[k][1]), peak_number])
 				fit = fit + gauss(wave, x_0 = peaks[k][0] , A=peaks[k][1], var=peaks[k][2])
 				p.annotate(str(int(peaks[k][1]/peaks_err[k][0]))+' sig \n|',
 						xy=(peaks[k][0], reduced_flux[i,int(((math.log(peaks[k][0])/math.log(10))-c0)/c1)]),
@@ -280,7 +269,7 @@ for j in n.arange(len(plate_mjd)):
 			#p.show()
 	
 	print 'Time taken ', (datetime.datetime.now() - startTime)
-	detected = sorted(detected, key = lambda obj : obj[10])
+	detected = sorted(detected, key = lambda obj : obj[10], reverse = True)
 	f = open(topdir + '/candidates.txt','a')
 	for item in detected:
 		f.write("\n" + str(item))

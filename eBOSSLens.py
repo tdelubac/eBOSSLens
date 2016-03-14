@@ -167,7 +167,7 @@ for j in n.arange(len(plate_mjd)):
 		searchpeaks = True
 
 		while (searchpeaks == True):
-			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number, 'zwarning', zwarning[i],"\n",		
+			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number, "\n",		
 			
 			sqrtivar[i,:] = n.sqrt(ivar[i,:])
 			

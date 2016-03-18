@@ -40,9 +40,16 @@ def func(params, xdata, ydata, sqrtivar, x0, llimit, ulimit):
 			return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1]))*sqrtivar + 10 
 	return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1]))*sqrtivar
 
+def func2(params, xdata, ydata, sqrtivar, x0, llimit, ulimit):
+	for i in n.arange(len(llimit)):
+		if ((params[i] < llimit[i]) or (params[i] > ulimit[i]) or (params[i+2] < llimit[i]) or (params[i+2] > ulimit[i])):
+			return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1])-gauss(x=xdata, x_0=x0-1, A=params[2], var=params[3]))*sqrtivar + 10 
+	return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1])-gauss(x=xdata, x_0=x0-1, A=params[2], var=params[3]))*sqrtivar
+
+
 # Check if x0 is near any emission line redshifted by z
 def nearline(x0, zline, fiberid, z, mjd, plate):
-	match1 = n.logical_and((x0 - zline['linewave']*(1+z)) < 2*zline['lineew'], zline['linearea']!=0)
+	match1 = n.logical_and(abs(zline['linewave']*(1+zline['linez']) -x0) < 3*zline['lineew'], zline['linearea']!=0)
 	match2 = n.logical_and(zline['fiberid']==fiberid,zline['mjd']==int(mjd))
 	match3 = n.logical_and(zline['plate']==int(plate), zline['linearea']/zline['linearea_err'] > 2)
 	match4 = n.logical_and(match1,n.logical_and(match2,match3))
@@ -64,16 +71,16 @@ def make_sure_path_exists(path):
 topdir = '..'
 
 #print " "*60, "\ropening platelist.fits\r",
-#hdulist = pf.open('platelist.fits')
+#hdulist = pf.open('/fits_files/plates-dr12.fits')
 #platelist = hdulist[1].data
 #hdulist.close()
 #hdulist = 0
 
 ## import list of plates to analyze
-#print " "*60, "\rimporting list of plates\r",
+print " "*60, "\rimporting list of plates\r",
 #plate_mjd = [line.strip() for line in open('Stripe82.platelist.txt')]
-plate_mjd = [line.strip() for line in open(topdir + '/fits_files/test_mjd.txt')]
-
+plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_mjd.txt')]
+print plate_mjd
 #for i in n.arange(len(plate_mjd)):
 	#for k in n.arange(len(platelist['plate'])):
 		#if (int(plate_mjd[i]) == platelist['plate'][k]):
@@ -87,7 +94,6 @@ f = open(topdir + '/candidates.txt','a')
 f.write('RA DEC plate mjd fiber peak_wavelength peak_amp peak_amp_err peak_width peak_width_err  peak_number\n')
 f.close()
 
-
 #Loop over plates
 for j in n.arange(len(plate_mjd)):
 	#print ' '*60, '\r', "initialization plate " , plate_mjd[j][0], "\r",
@@ -97,10 +103,8 @@ for j in n.arange(len(plate_mjd)):
 	flux = 0
 	
 	# Pick your plate/mjd and read the data:
-	#plate = plate_mjd[j][0]
-	#mjd = plate_mjd[j][1]
-	plate = 4191
-	mjd = 55444
+	plate = plate_mjd[j][0]
+	mjd = plate_mjd[j][1]
 	spfile = topdir + '/fits_files/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
 	zbfile = topdir + '/fits_files/spZbest-' + str(plate) + '-' + str(mjd) + '.fits'
 	zlfile = topdir + '/fits_files/spZline-' + str(plate) + '-' + str(mjd) + '.fits'
@@ -136,11 +140,12 @@ for j in n.arange(len(plate_mjd)):
 	hdulist = 0
 	##### PlotSpec ends here 
 	#-----------------------------------------------------------------------------------------------------
-	
-	reduced_flux = flux - synflux
+
+	reduced_flux = n.array(flux - synflux)
 	detected = []
 	sqrtivar=copy.deepcopy(ivar)
 	
+	#Upper and lower limit on amplitude and variance of peaks
 	llimit = [0, 10]
 	ulimit = [1000, 2500]
 	
@@ -165,32 +170,37 @@ for j in n.arange(len(plate_mjd)):
 		peak_number = len(peaks)
 		below_9000 = False
 		searchpeaks = True
-
+		doublet = None
+		
 		while (searchpeaks == True):
-			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number, "\n",		
+			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number,  "\n",		
 			
 			sqrtivar[i,:] = n.sqrt(ivar[i,:])
 			
 			# Initial guess
-			init = [1, 30]
+			init = [1,30]
+			# Initial guess OII doublet
+			init2 = [1,10,1,10]
+			
 			chisq_saved = 1000
 			x0_saved=0
 			
-			#Old method search for peaks
-			#sig_points = []
-			#for k in n.arange(len(wave)):
-				#if (abs(reduced_flux[i,k]*sqrtivar[i,k]) > 5):
-					#sig_points.append(k)
-			#Test for concordance of two methods
-			#print n.all([wave[sig_points],[x0 for x0,test in zip(wave,abs(reduced_flux[i,:]*sqrtivar[i,:])) if test>5]])
 			
-			# Loop over all data points to find best peak match, optimized
-			peak_candidates = [x0 for x0,test in zip(wave,abs(reduced_flux[i,:]*sqrtivar[i,:])) if test>5]
+			# prune those where ivar =< 0 zones
+			#indices = n.array([n.where(ivar[i,:]==0)])
+			#ivar0 = wave[indices].astype(int)
+			#wave_prepared = n.delete(wave, n.concatenate([indices-1,indices,indices+1]))
+			
+			#peak candidates: a priori search if nearline foreground emission line or not
+			peak_candidates = [x0 for x0,test in zip(wave,reduced_flux[i,:]* sqrtivar[i,:]) if test>5]
+
 			for x0 in peak_candidates:
+				if nearline(x0, zline, fiberid[i], z[i], int(mjd), int(plate)):
+					continue
 				cov=0
-				#Gaussian fit around x_0
+				#Single Line: Gaussian fit around x_0
 				params, cov, infodict, mesg, ier = leastsq(func, init,
-					 args=(wave, reduced_flux[i,:] * (ivar[i,:]>0), sqrtivar[i,:], x0, llimit, ulimit),
+					 args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0, llimit, ulimit),
 					 full_output=True)
 	
 				residue_squared=(((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]))**2)*ivar[i,:])/(len(wave)-3)
@@ -199,26 +209,42 @@ for j in n.arange(len(plate_mjd)):
 				if (chisq<chisq_saved):
 					x0_saved = x0
 					chisq_saved = chisq
+					doublet = False
+					
+				#Doublet OII: Gaussian fit around x_0
+				#if (x0 > 3727*(1+z[i]) and doublet!=True):
+					#params, cov, infodict, mesg, ier = leastsq(func2, init2,
+						#args=(wave, reduced_flux[i,:] * (ivar[i,:]>0), sqrtivar[i,:], x0, llimit, ulimit),
+						#full_output=True)
+					#deltaOII = (n.log10(x0) - n.log10(x0-1.3))/c1
+					#residue_squared=(reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]) -gauss(x=wave, x_0=x0-1, A=params[2], var=params[3])**2)*ivar[i,:]/(len(wave)-5)
+					#chisq = sum(residue_squared)
 				
+					#if (chisq<chisq_saved):
+						#x0_saved = x0
+						#chisq_saved = chisq
+						#doublet = True
+
 			# Gaussian fit around x0_saved
-			params, cov, infodict, mesg, ier = leastsq(func, init, 
+			if (doublet == False):
+				params, cov, infodict, mesg, ier = leastsq(func, init, 
 					args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0_saved, llimit, ulimit), 
 					full_output=True)
-								
-			# S/N criterion?	
-			if (cov is None or abs(chisq_saved*params[0]/math.sqrt(cov[0,0])) < 4):
+			elif (doublet == True):
+				print 'Doublet detected at z = ' , -1+ (x0_saved/3726.0)
+				params, cov, infodict, mesg, ier = leastsq(func2, init2, 
+					args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0_saved, llimit, ulimit), 
+					full_output=True)
+			else:
 				searchpeaks = False
 				continue
-			
-			# Check if candidate emission line is not from foreground 
-			if (nearline(x0_saved, zline, fiberid[i], z[i], int(mjd), int(plate))):
-				# Set ivar = 0 for points around peaks
-				delta = 2*int((math.log(1 + math.sqrt(params[1])/x0_saved)/math.log(10)) / c1)
-				if (delta == 0):
-					delta=1
-				center = int(((math.log(x0_saved)/math.log(10))-c0)/c1)
-				ivar[i][max(center-delta,0):min(center+delta,len(sqrtivar[i,:])-1)+1] = 0
-				continue
+					
+			# S/N criterion	
+			if (cov is None or abs(chisq_saved*params[0]/math.sqrt(cov[0,0])) < 4):
+				searchpeaks = False
+				doublet = False
+				continue	
+
 			# 9000 Angstrom cut 
 			if (x0_saved < 9000):
 				below_9000 = True
@@ -226,7 +252,11 @@ for j in n.arange(len(plate_mjd)):
 			# Save emission line 
 			peaks.append([x0_saved, params[0], params[1]])
 			peaks_err.append([math.sqrt(cov[0,0]*chisq_saved), math.sqrt(cov[1,1]*chisq_saved)])
-			
+			if (doublet == True): 
+				peaks.append([x0_saved-1, params[2], params[3]])
+				peaks_err.append([math.sqrt(cov[2,2]*chisq_saved), math.sqrt(cov[3,3]*chisq_saved)])
+				print 'Doublet confirme'
+				
 			# Set ivar = 0 for points around peak/emission line found
 			delta = 2*int((math.log(1 + math.sqrt(params[1])/x0_saved)/math.log(10)) / c1)
 			if (delta == 0):
@@ -237,24 +267,22 @@ for j in n.arange(len(plate_mjd)):
 			peak_number = peak_number+1
 			
 		#Graphs
-		p.subplot(2,1,1)
-		p.plot(wave, flux[i,:] * (ivar_copy[i,:]>0), 'k', hold=False)
-		p.plot(wave, synflux[i,:], 'g', hold=True)
-		p.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+
-			', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+
-			'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
-		p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
-		
-		p.subplot(2,1,2)
-		p.plot(wave, reduced_flux[i,:] *(ivar_copy[i,:]>0),'k', hold=False)
-		sqrtivar[i,:]=n.sqrt(ivar_copy[i,:])
-		#p.errorbar(wave, reduced_flux[i,:], yerr= 1.0/sqrtivar[i,:])
-		p.xlabel('$Wavelength\, (Angstroms)$')
-		p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
-		
-		#Save candidate coordinates and peaks
-		fit=0
-		if (len(peaks)>1 and below_9000):
+		if ((len(peaks)>1 or doublet==True) and below_9000):
+			p.subplot(2,1,1)
+			p.plot(wave, flux[i,:], 'k', hold=False)
+			p.plot(wave, synflux[i,:], 'g', hold=True)
+			p.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+
+				', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+
+				'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
+			p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
+			
+			p.subplot(2,1,2)
+			p.plot(wave, reduced_flux[i,:],'k', hold=False)
+			#p.errorbar(wave, reduced_flux[i,:], yerr= 1.0/sqrtivar[i,:])
+			p.xlabel('$Wavelength\, (Angstroms)$')
+			p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
+			#Save candidate coordinates and peaks
+			fit=0
 			for k in n.arange(len(peaks)):
 				detected.append([RA[i], DEC[i], int(plate), int(mjd), fiberid[i],
 						peaks[k][0], peaks[k][1], math.sqrt(peaks[k][2]), peaks_err[k][0], n.sqrt(peaks_err[k][1]), peak_number])
@@ -267,7 +295,7 @@ for j in n.arange(len(plate_mjd)):
 			print ' '*60, '\r', "saving figure\r",
 			make_sure_path_exists(topdir + '/plots/')
 			p.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
-			#p.show()
+			p.show()
 	
 	print 'Time taken ', (datetime.datetime.now() - startTime)
 	detected = sorted(detected, key = lambda obj : obj[10], reverse = True)

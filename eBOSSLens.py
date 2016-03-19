@@ -147,7 +147,7 @@ for j in n.arange(len(plate_mjd)):
 	
 	#Upper and lower limit on amplitude and variance of peaks
 	llimit = [0, 10]
-	ulimit = [1000, 2500]
+	ulimit = [100, 60]
 	
 	# Masks atmosphere
 	ivar[:,542:551] = 0 # Hg line
@@ -168,95 +168,99 @@ for j in n.arange(len(plate_mjd)):
 		peaks = []
 		peaks_err = []
 		peak_number = len(peaks)
-		below_9000 = False
 		searchpeaks = True
 		doublet = None
 		
-		while (searchpeaks == True):
-			print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number,  "\n",		
-			
-			sqrtivar[i,:] = n.sqrt(ivar[i,:])
-			
-			# Initial guess
-			init = [1,30]
-			# Initial guess OII doublet
-			init2 = [1,10,1,10]
-			
-			chisq_saved = 1000
-			x0_saved=0
-			
-			
-			# prune those where ivar =< 0 zones
-			#indices = n.array([n.where(ivar[i,:]==0)])
-			#ivar0 = wave[indices].astype(int)
-			#wave_prepared = n.delete(wave, n.concatenate([indices-1,indices,indices+1]))
-			
-			#peak candidates: a priori search if nearline foreground emission line or not
-			peak_candidates = [x0 for x0,test in zip(wave,reduced_flux[i,:]* sqrtivar[i,:]) if test>5]
+		sqrtsaved = n.sqrt(ivar[i,:])
+		sqrtivar[i,:] = n.sqrt(ivar[i,:])
+		
+		# Initial guess
+		init = [1,10]
+		# Initial guess OII doublet
+		init2 = [1,10,1,10]
+		
+		#peak candidates: a priori search if nearline foreground emission line or not
+		peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(wave,reduced_flux[i,:]* sqrtivar[i,:]) if test>5])
+		#Keep only center of candidate peak
+		k = 0
+		while (k < (len(peak_candidates)-1)):
+			if (abs(peak_candidates[k][0] - peak_candidates[k+1][0]) < 5):
+				if peak_candidates[k][6] < peak_candidates[k+1][6]:
+					peak_candidates = n.delete(peak_candidates,k, axis=0)
+					k = k-1
+				else:
+					peak_candidates = n.delete(peak_candidates,k+1,axis = 0)
+					k = k-1					
+			k = k+1
 
-			for x0 in peak_candidates:
-				if nearline(x0, zline, fiberid[i], z[i], int(mjd), int(plate)):
-					continue
-				cov=0
-				#Single Line: Gaussian fit around x_0
-				params, cov, infodict, mesg, ier = leastsq(func, init,
-					 args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0, llimit, ulimit),
-					 full_output=True)
-	
-				residue_squared=(((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]))**2)*ivar[i,:])/(len(wave)-3)
-				chisq = sum(residue_squared)
-				
-				if (chisq<chisq_saved):
-					x0_saved = x0
-					chisq_saved = chisq
-					doublet = False
-					
-				#Doublet OII: Gaussian fit around x_0
-				#if (x0 > 3727*(1+z[i]) and doublet!=True):
-					#params, cov, infodict, mesg, ier = leastsq(func2, init2,
-						#args=(wave, reduced_flux[i,:] * (ivar[i,:]>0), sqrtivar[i,:], x0, llimit, ulimit),
-						#full_output=True)
-					#deltaOII = (n.log10(x0) - n.log10(x0-1.3))/c1
-					#residue_squared=(reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]) -gauss(x=wave, x_0=x0-1, A=params[2], var=params[3])**2)*ivar[i,:]/(len(wave)-5)
-					#chisq = sum(residue_squared)
-				
-					#if (chisq<chisq_saved):
-						#x0_saved = x0
-						#chisq_saved = chisq
-						#doublet = True
-
-			# Gaussian fit around x0_saved
-			if (doublet == False):
-				params, cov, infodict, mesg, ier = leastsq(func, init, 
-					args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0_saved, llimit, ulimit), 
-					full_output=True)
-			elif (doublet == True):
-				print 'Doublet detected at z = ' , -1+ (x0_saved/3726.0)
-				params, cov, infodict, mesg, ier = leastsq(func2, init2, 
-					args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0_saved, llimit, ulimit), 
-					full_output=True)
-			else:
-				searchpeaks = False
+		for peak in peak_candidates:
+			x0 = peak[0]
+			if nearline(x0, zline, fiberid[i], z[i], int(mjd), int(plate)):
 				continue
-					
-			# S/N criterion	
-			if (cov is None or abs(chisq_saved*params[0]/math.sqrt(cov[0,0])) < 4):
-				searchpeaks = False
-				doublet = False
-				continue	
+			cov=0
+			#Single Line: Gaussian fit around x_0
+			params, cov, infodict, mesg, ier = leastsq(func, init,
+				 args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0, llimit, ulimit),
+				 full_output=True)
 
-			# 9000 Angstrom cut 
-			if (x0_saved < 9000):
-				below_9000 = True
+			residue_squared=(((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]))**2)*ivar[i,:])/(len(wave)-3)
+			chisq =  sum(residue_squared)
+			#Check for S/N > 4 fit
+			if not(cov is None or abs(chisq*params[0]/math.sqrt(cov[0,0])) < 4):
+				peak[1] = chisq
+				peak[2] = params[0]
+				peak[3] = params[1]
+				peak[4] = cov[0,0]
+				peak[5] = cov[1,1]	
+				
 			
+			#Doublet OII: Gaussian fit around x_0
+			#if (x0 > 3727*(1+z[i]) and doublet!=True):
+				#params, cov, infodict, mesg, ier = leastsq(func2, init2,
+					#args=(wave, reduced_flux[i,:] , sqrtivar[i,:], x0, llimit, ulimit),
+					#full_output=True)
+				#deltaOII = (n.log10(x0) - n.log10(x0-1.3))/c1
+				#residue_squared=(reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]) -gauss(x=wave, x_0=x0-1, A=params[2], var=params[3])**2)*ivar[i,:]/(len(wave)-5)
+				#chisq = sum(residue_squared)
+			
+				#if (chisq<chisq_saved):
+					#x0_saved = x0
+					#chisq_saved = chisq
+					#doublet = True
+		#Removing candidates that were not fitted : params still 0
+		peak_candidates = [peak for peak in peak_candidates if peak[2]!=0]  
+		
+		#Sorting candidates by chi square
+		peak_candidates = sorted(peak_candidates, key=lambda peak: peak[1])
+		
+		# Keeping only 5 most likely candidates
+		if len(peak_candidates) > 5:
+			peak_candidates = peak_candidates[0:5]
+		
+		# Check that at least 1 candidate is below 9000 Angstrom cut, if not, go to next fiber
+		below_9000 = False
+		for peak in peak_candidates:
+			if peak[0] < 9000:
+				below_9000 = True
+		if below_9000 ==False:
+			continue
+			
+		# Save surviving candidates
+		for peak in peak_candidates:
+			#Redefine variables for clarity
+			x0_saved = peak[0] #peak wavelength
+			chisq_saved = peak[1]
+			params = [peak[2],peak[3]] #amplitude, variance
+			err_amp = peak[4]
+			err_var = peak[5]
 			# Save emission line 
 			peaks.append([x0_saved, params[0], params[1]])
-			peaks_err.append([math.sqrt(cov[0,0]*chisq_saved), math.sqrt(cov[1,1]*chisq_saved)])
-			if (doublet == True): 
-				peaks.append([x0_saved-1, params[2], params[3]])
-				peaks_err.append([math.sqrt(cov[2,2]*chisq_saved), math.sqrt(cov[3,3]*chisq_saved)])
-				print 'Doublet confirme'
-				
+			peaks_err.append([math.sqrt(err_amp*chisq_saved), math.sqrt(err_var*chisq_saved)])
+			#if (doublet == True): 
+				#peaks.append([x0_saved-1, params[2], params[3]])
+				#peaks_err.append([math.sqrt(cov[2,2]*chisq_saved), math.sqrt(cov[3,3]*chisq_saved)])
+				#print 'Doublet confirme'
+			
 			# Set ivar = 0 for points around peak/emission line found
 			delta = 2*int((math.log(1 + math.sqrt(params[1])/x0_saved)/math.log(10)) / c1)
 			if (delta == 0):
@@ -264,10 +268,32 @@ for j in n.arange(len(plate_mjd)):
 			center = int(((math.log(x0_saved)/math.log(10))-c0)/c1)
 			ivar[i][max(center-delta,0):min(center+delta,len(sqrtivar[i,:])-1)+1] = 0
 			
-			peak_number = peak_number+1
+		peak_number = len(peak_candidates)
+		print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number,  "\n",		
 			
+			
+			# Gaussian fit around x0_saved
+			#if (doublet == False):
+				#params, cov, infodict, mesg, ier = leastsq(func, init, 
+					#args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0_saved, llimit, ulimit), 
+					#full_output=True)
+			#elif (doublet == True):
+				#print 'Doublet detected at z = ' , -1+ (x0_saved/3726.0)
+				#params, cov, infodict, mesg, ier = leastsq(func2, init2, 
+					#args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0_saved, llimit, ulimit), 
+					#full_output=True)
+			#else:
+				#searchpeaks = False
+				#continue
+					
+			## S/N criterion	
+			#if (cov is None or abs(chisq_saved*params[0]/math.sqrt(cov[0,0])) < 4):
+				#searchpeaks = False
+				#doublet = False
+				#continue	
+
 		#Graphs
-		if ((len(peaks)>1 or doublet==True) and below_9000):
+		if ((peak_number>1 or doublet==True) and below_9000):
 			p.subplot(2,1,1)
 			p.plot(wave, flux[i,:], 'k', hold=False)
 			p.plot(wave, synflux[i,:], 'g', hold=True)
@@ -277,7 +303,8 @@ for j in n.arange(len(plate_mjd)):
 			p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
 			
 			p.subplot(2,1,2)
-			p.plot(wave, reduced_flux[i,:],'k', hold=False)
+			p.plot(wave, reduced_flux[i,:]*sqrtsaved,'k', hold=False)
+			p.plot(wave, reduced_flux[i,:],'r', hold=True)
 			#p.errorbar(wave, reduced_flux[i,:], yerr= 1.0/sqrtivar[i,:])
 			p.xlabel('$Wavelength\, (Angstroms)$')
 			p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')

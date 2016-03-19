@@ -19,6 +19,7 @@ from matplotlib import rcParams
 #rcParams['text.usetex'] = True
 import os
 import errno
+import itertools as it
 
 #-----------------------------------------------------------------------------------------------------
 # Function definitions
@@ -94,6 +95,10 @@ f = open(topdir + '/candidates.txt','a')
 f.write('RA DEC plate mjd fiber peak_wavelength peak_amp peak_amp_err peak_width peak_width_err  peak_number\n')
 f.close()
 
+#Set of emission lines used for lensed galaxy detection OII, Hb, OIII, OIII, Ha
+em_lines = n.array([3726.5,4861.325,4958.911,5006.843,6562.801])
+
+
 #Loop over plates
 for j in n.arange(len(plate_mjd)):
 	#print ' '*60, '\r', "initialization plate " , plate_mjd[j][0], "\r",
@@ -146,7 +151,7 @@ for j in n.arange(len(plate_mjd)):
 	sqrtivar=copy.deepcopy(ivar)
 	
 	#Upper and lower limit on amplitude and variance of peaks
-	llimit = [0, 10]
+	llimit = [0, 5]
 	ulimit = [100, 60]
 	
 	# Masks atmosphere
@@ -245,6 +250,20 @@ for j in n.arange(len(plate_mjd)):
 		if below_9000 ==False:
 			continue
 			
+		#Try to infer background redshift
+		#Generating all combinations of lines from above list to compare with candidates
+		detection = False
+		if len(peak_candidates) >1 :
+			compare = it.combinations(em_lines,len(peak_candidates))
+			for group in compare:
+				for k in range(len(peak_candidates)):
+					for j in range(k+1,len(peak_candidates)):
+						if ( abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and peak_candidates[k][0]/group[k]-1 > (z[i] + 0.05) ):
+							detection = True
+							print 'Lensed object at z = ', peak_candidates[k][0]/group[k] -1
+				
+		
+			
 		# Save surviving candidates
 		for peak in peak_candidates:
 			#Redefine variables for clarity
@@ -271,7 +290,6 @@ for j in n.arange(len(plate_mjd)):
 		peak_number = len(peak_candidates)
 		print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number,  "\n",		
 			
-			
 			# Gaussian fit around x0_saved
 			#if (doublet == False):
 				#params, cov, infodict, mesg, ier = leastsq(func, init, 
@@ -293,7 +311,7 @@ for j in n.arange(len(plate_mjd)):
 				#continue	
 
 		#Graphs
-		if ((peak_number>1 or doublet==True) and below_9000):
+		if ((peak_number>1 or doublet==True) and below_9000 and detection):
 			p.subplot(2,1,1)
 			p.plot(wave, flux[i,:], 'k', hold=False)
 			p.plot(wave, synflux[i,:], 'g', hold=True)
@@ -322,7 +340,7 @@ for j in n.arange(len(plate_mjd)):
 			print ' '*60, '\r', "saving figure\r",
 			make_sure_path_exists(topdir + '/plots/')
 			p.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
-			p.show()
+			#p.show()
 	
 	print 'Time taken ', (datetime.datetime.now() - startTime)
 	detected = sorted(detected, key = lambda obj : obj[10], reverse = True)

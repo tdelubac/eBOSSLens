@@ -42,10 +42,9 @@ def func(params, xdata, ydata, sqrtivar, x0, llimit, ulimit):
 	return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1]))*sqrtivar
 
 def func2(params, xdata, ydata, sqrtivar, x0, llimit, ulimit):
-	for i in n.arange(len(llimit)):
-		if ((params[i] < llimit[i]) or (params[i] > ulimit[i]) or (params[i+2] < llimit[i]) or (params[i+2] > ulimit[i])):
-			return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1])-gauss(x=xdata, x_0=x0-1, A=params[2], var=params[3]))*sqrtivar + 10 
-	return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1])-gauss(x=xdata, x_0=x0-1, A=params[2], var=params[3]))*sqrtivar
+	if ((params[0] < llimit[0]) or (params[0] > ulimit[0]) or  (params[1] < llimit[1]) or (params[1] > ulimit[1]) or  (params[2] < llimit[0]) or (params[2] > ulimit[0]) ):
+			return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1])-gauss(x=xdata, x_0=x0-1, A=params[2], var=params[1]))*sqrtivar + 10 
+	return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1])-gauss(x=xdata, x_0=x0-params[3], A=params[2], var=params[1]))*sqrtivar
 
 
 # Check if x0 is near any emission line redshifted by z
@@ -81,7 +80,7 @@ topdir = '..'
 print " "*60, "\rimporting list of plates\r",
 #plate_mjd = [line.strip() for line in open('Stripe82.platelist.txt')]
 plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_mjd.txt')]
-print plate_mjd
+
 #for i in n.arange(len(plate_mjd)):
 	#for k in n.arange(len(platelist['plate'])):
 		#if (int(plate_mjd[i]) == platelist['plate'][k]):
@@ -151,8 +150,8 @@ for j in n.arange(len(plate_mjd)):
 	sqrtivar=copy.deepcopy(ivar)
 	
 	#Upper and lower limit on amplitude and variance of peaks
-	llimit = [0, 5]
-	ulimit = [100, 60]
+	llimit = [0, 2]
+	ulimit = [100, 10]
 	
 	# Masks atmosphere
 	ivar[:,542:551] = 0 # Hg line
@@ -180,12 +179,13 @@ for j in n.arange(len(plate_mjd)):
 		sqrtivar[i,:] = n.sqrt(ivar[i,:])
 		
 		# Initial guess
-		init = [1,10]
+		init = [3,5]
 		# Initial guess OII doublet
-		init2 = [1,10,1,10]
+		init2 = [3,5,3,2.6]
 		
 		#peak candidates: a priori search if nearline foreground emission line or not
-		peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(wave,reduced_flux[i,:]* sqrtivar[i,:]) if test>5])
+		peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,reduced_flux[i,:]* sqrtivar[i,:]) if test>5])
+		# Legend key x0: wavelength chisq_doublet amp_gauss var_gauss err_amp err_var S/N chisq_doublet amp1_doublet amp2_doublet var_doublet err1_doublet err2_doublet err_var_doublet
 		#Keep only center of candidate peak
 		k = 0
 		while (k < (len(peak_candidates)-1)):
@@ -208,10 +208,10 @@ for j in n.arange(len(plate_mjd)):
 				 args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0, llimit, ulimit),
 				 full_output=True)
 
-			residue_squared=(((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]))**2)*ivar[i,:])/(len(wave)-3)
+			residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]))**2)*ivar[i,:]/len(wave)
 			chisq =  sum(residue_squared)
 			#Check for S/N > 4 fit
-			if not(cov is None or abs(chisq*params[0]/math.sqrt(cov[0,0])) < 4):
+			if not(cov is None or abs(params[0]/math.sqrt(cov[0,0])) < 4):
 				peak[1] = chisq
 				peak[2] = params[0]
 				peak[3] = params[1]
@@ -220,20 +220,37 @@ for j in n.arange(len(plate_mjd)):
 				
 			
 			#Doublet OII: Gaussian fit around x_0
-			#if (x0 > 3727*(1+z[i]) and doublet!=True):
-				#params, cov, infodict, mesg, ier = leastsq(func2, init2,
-					#args=(wave, reduced_flux[i,:] , sqrtivar[i,:], x0, llimit, ulimit),
-					#full_output=True)
-				#deltaOII = (n.log10(x0) - n.log10(x0-1.3))/c1
-				#residue_squared=(reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]) -gauss(x=wave, x_0=x0-1, A=params[2], var=params[3])**2)*ivar[i,:]/(len(wave)-5)
-				#chisq = sum(residue_squared)
+			if (x0 > 3727*(1+z[i])):
+				params, cov, infodict, mesg, ier = leastsq(func2, init2,
+					args=(wave, reduced_flux[i,:] , sqrtivar[i,:], x0, llimit, ulimit),
+					full_output=True)
+				deltaOII = (n.log10(x0) - n.log10(x0-1.3))/c1
+				residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]) -gauss(x=wave, x_0=x0-params[3], A=params[2], var=params[1]))**2)*ivar[i,:]/len(wave)
+				chisq = sum(residue_squared)
 			
-				#if (chisq<chisq_saved):
-					#x0_saved = x0
-					#chisq_saved = chisq
-					#doublet = True
+				if not(cov is None or abs(params[0]/math.sqrt(cov[0,0])) < 4 or abs(params[2]/math.sqrt(cov[2,2])) < 4) or not(3.9 > abs(params[3]) > 1.3 ):
+					peak[7] = chisq
+					peak[8] = params[0] #amp1
+					peak[9] = params[2] #var
+					peak[10] = params[1] #amp2
+					peak[11] = params[3] #delta x
+					peak[12] = cov[0,0] #err amp1
+					peak[13] = cov[2,2] #err var
+					peak[14] = cov[1,1] #err amp2
+						
 		#Removing candidates that were not fitted : params still 0
-		peak_candidates = [peak for peak in peak_candidates if peak[2]!=0]  
+		peak_candidates = n.array([peak for peak in peak_candidates if peak[2]!=0])
+		if len(peak_candidates) == 0:
+			continue
+
+		#Finding peak with highest chi square for doublet and see if it is better fitted by single line or not
+		doublet_index = n.argmin(peak_candidates[:,7])
+
+		print 'chi2: ', peak_candidates[doublet_index][1] , peak_candidates[doublet_index][7]
+		if (peak_candidates[doublet_index][1] > peak_candidates[doublet_index][7]>0 and peak_candidates[doublet_index][10] > 0.0 and peak_candidates[doublet_index][8] > 0.0 ):
+			doublet = True
+			detection = True
+			peak_candidates[doublet_index][1] = peak_candidates[doublet_index][7]
 		
 		#Sorting candidates by chi square
 		peak_candidates = sorted(peak_candidates, key=lambda peak: peak[1])
@@ -241,6 +258,8 @@ for j in n.arange(len(plate_mjd)):
 		# Keeping only 5 most likely candidates
 		if len(peak_candidates) > 5:
 			peak_candidates = peak_candidates[0:5]
+		
+
 		
 		# Check that at least 1 candidate is below 9000 Angstrom cut, if not, go to next fiber
 		below_9000 = False
@@ -253,14 +272,19 @@ for j in n.arange(len(plate_mjd)):
 		#Try to infer background redshift
 		#Generating all combinations of lines from above list to compare with candidates
 		detection = False
-		if len(peak_candidates) >1 :
+		if (doublet == True):
+			z_background = peak_candidates[doublet_index][0]/3727.24 - 1.0
+			z_test = peak_candidates[doublet_index][11]/1.3
+			temp = [peak for peak in peak_candidates if peak[1]!=peak[7]]
+			print '(Doublet) Lensed object at z1 = ', z_background , ' z2 = ', z_test
+		elif len(peak_candidates) > 1 :
 			compare = it.combinations(em_lines,len(peak_candidates))
 			for group in compare:
 				for k in range(len(peak_candidates)):
 					for j in range(k+1,len(peak_candidates)):
-						if ( abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and peak_candidates[k][0]/group[k]-1 > (z[i] + 0.05) ):
+						if ( abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and peak_candidates[k][0]/group[k]-1.0 > (z[i] + 0.05) ):
 							detection = True
-							print 'Lensed object at z = ', peak_candidates[k][0]/group[k] -1
+							print '(Multi Lines) Lensed object at z = ', peak_candidates[k][0]/group[k] -1.0
 				
 		
 			
@@ -340,7 +364,7 @@ for j in n.arange(len(plate_mjd)):
 			print ' '*60, '\r', "saving figure\r",
 			make_sure_path_exists(topdir + '/plots/')
 			p.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
-			#p.show()
+			p.show()
 	
 	print 'Time taken ', (datetime.datetime.now() - startTime)
 	detected = sorted(detected, key = lambda obj : obj[10], reverse = True)

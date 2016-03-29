@@ -84,7 +84,7 @@ topdir = '..'
 #hdulist = 0
 
 ## import list of plates to analyze
-print " "*60, "\rimporting list of plates\r",
+print " "*20, "importing list of plates",
 #plate_mjd = [line.strip() for line in open('Stripe82.platelist.txt')]
 plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_mjd.txt')]
 
@@ -112,14 +112,14 @@ for j in n.arange(len(plate_mjd)):
 	
 	# Initialization
 	flux = 0
+	plate = plate_mjd[j][0]
+	mjd = plate_mjd[j][1]
 	
 	# Pick your plate/mjd and read the data:
 	plate = plate_mjd[j][0]
-	mjd = plate_mjd[j][1]
 	spfile = topdir + '/fits_files/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
 	zbfile = topdir + '/fits_files/spZbest-' + str(plate) + '-' + str(mjd) + '.fits'
 	zlfile = topdir + '/fits_files/spZline-' + str(plate) + '-' + str(mjd) + '.fits'
-	
 	hdulist = pf.open(spfile)
 	c0 = hdulist[0].header['coeff0']
 	c1 = hdulist[0].header['coeff1']

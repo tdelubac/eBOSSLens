@@ -64,6 +64,12 @@ def nearline(x0, zline, fiberid, z, mjd, plate):
 		return True
 	else:
 		return False
+		
+def kernel(j,width,NormGauss,length):
+	ker = n.zeros(length)
+	ker[j-int(width*0.5):j+int(width*0.5)] = NormGauss
+	return ker
+	
 
 # Check if a path exists, if not make it
 def make_sure_path_exists(path):
@@ -86,7 +92,7 @@ topdir = '..'
 ## import list of plates to analyze
 print " "*20, "importing list of plates",
 #plate_mjd = [line.strip() for line in open('Stripe82.platelist.txt')]
-plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_mjd.txt')]
+plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_list.txt')]
 
 #for i in n.arange(len(plate_mjd)):
 	#for k in n.arange(len(platelist['plate'])):
@@ -103,7 +109,9 @@ f.close()
 
 #Set of emission lines used for lensed galaxy detection OII, Hb, OIII, OIII, Ha
 em_lines = n.array([3726.5,4861.325,4958.911,5006.843,6562.801])
-
+countDoublet = 0
+countDM = 0
+countMulti = 0
 
 #Loop over plates
 for j in n.arange(len(plate_mjd)):
@@ -176,8 +184,8 @@ for j in n.arange(len(plate_mjd)):
 	startTime = datetime.datetime.now()
 
 	# Loop over objects
-	for i in n.arange(len(flux[:,0])):
-		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or zwarning[i]!=0):
+	for i in n.array([580,62,254,920,86,512,267,609,200]): #n.arange(len(flux[:,0])):
+		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   '): # or zwarning[i]!=0):
 			continue
 		peaks = []
 		peaks_err = []
@@ -188,18 +196,28 @@ for j in n.arange(len(plate_mjd)):
 		sqrtsaved = n.sqrt(ivar[i,:])
 		sqrtivar[i,:] = n.sqrt(ivar[i,:])
 		
-		# Initial guess
-		init = [3,5]
-		# Initial guess OII doublet
-		init2 = [1,4,1,2.6]
+		### Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks
+		width = 30.0
+		sig = 2.0
+		## Prepare normalized gaussian
+		NormGauss = gauss(n.linspace(-width*0.5,width*0.5,width),0.0,1.0,sig)
+		NormGauss = NormGauss/sum(NormGauss)
+		Cj1 = n.array([sum(reduced_flux[i,:]*kernel(j+0.5*width,width,NormGauss,len(wave))*ivar[i,:]) for j in range(int(len(wave)-width))])
+		Cj2 = n.array([sum(ivar[i,:]*kernel(j+0.5*width,width,NormGauss,len(wave))**2) for j in range(int(len(wave)-width))])
+		SN = n.zeros(len(wave))
+		SN[width*0.5:len(wave)-width*0.5] = Cj1/n.sqrt(Cj2)
 		
-		#peak candidates: a priori search if nearline foreground emission line or not
-		peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,reduced_flux[i,:]* sqrtivar[i,:]) if test>5])
+		
+		print 'Fiber ', fiberid[i] , 'just sorted all potential peaks' 
+
+		#peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,reduced_flux[i,:]* sqrtivar[i,:]) if test>5])
+		peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if test>6.0])
 		# Legend key x0: wavelength chisq_doublet amp_gauss var_gauss err_amp err_var S/N chisq_doublet amp1_doublet amp2_doublet var_doublet err1_doublet err2_doublet err_var_doublet
+
 		#Keep only center of candidate peak
 		k = 0
 		while (k < (len(peak_candidates)-1)):
-			if (abs(peak_candidates[k][0] - peak_candidates[k+1][0]) < 5):
+			if (abs(peak_candidates[k][0] - peak_candidates[k+1][0]) < 10):
 				if peak_candidates[k][6] < peak_candidates[k+1][6]:
 					peak_candidates = n.delete(peak_candidates,k, axis=0)
 					k = k-1
@@ -207,13 +225,15 @@ for j in n.arange(len(plate_mjd)):
 					peak_candidates = n.delete(peak_candidates,k+1,axis = 0)
 					k = k-1					
 			k = k+1
-
+			
+		#Search for suitable peak candidates
 		for peak in peak_candidates:
 			x0 = peak[0]
 			if nearline(x0, zline, fiberid[i], z[i], int(mjd), int(plate)):
 				continue
 			cov=0
 			#Single Line: Gaussian fit around x_0
+			init = [2,2]
 			params, cov, infodict, mesg, ier = leastsq(func, init,
 				 args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0, llimit, ulimit),
 				 full_output=True)
@@ -230,18 +250,16 @@ for j in n.arange(len(plate_mjd)):
 				peak[5] = cov[1,1]	
 				
 			#Doublet OII: Gaussian fit around x_0
-			if (x0 > 3727*(1+z[i])):
-				init2= [peak[6],5,peak[6],-3]
+			if (x0 > 3727.0*(1+z[i])):
+				init2= [1.0,5,1.0,-5]
 				#params, cov, infodict, mesg, ier = leastsq(func2, init2,
 				#	args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0, llimit, ulimit),
 				#	full_output=True)
-				res = minimize(chi2,init2,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='TNC', bounds = [(0.2,10),(2,10),(0.2,10),(-3,3)])
+				res = minimize(chi2,init2,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='TNC', bounds = [(0.1,3),(2,10),(0.1,3),(-7,7)])
 				params = res.x
 				residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]) -gauss(x=wave, x_0=x0-params[3], A=params[2], var=params[1]))**2)*ivar[i,:]
 				chisq = sum(residue_squared)/(len(wave)-len(params) -1)
 				
-				
-			
 				#if (not(cov is None)): #or abs(params[0]/math.sqrt(cov[0,0])) < 4 or abs(params[2]/math.sqrt(cov[2,2])) < 4):
 				if abs(params[3])>1.5:	
 					peak[7] = chisq
@@ -252,8 +270,8 @@ for j in n.arange(len(plate_mjd)):
 					peak[12] = 1.0 #cov[0,0] #err amp1
 					peak[13] = 1.0#cov[2,2] #err var
 					peak[14] = 1.0#cov[1,1] #err amp2
-						
-		#Finding peak with highest chi square for doublet and see if it is better fitted by single line or not
+		print peak_candidates				
+		#Finding peak with lowest chi square for doublet and see if it is better fitted by single line or not
 		doublet_index = 0
 		chi2saved = 1000.0
 		# Find the doublet index
@@ -288,7 +306,7 @@ for j in n.arange(len(plate_mjd)):
 		# Check that at least 1 candidate is below 9000 Angstrom cut, if not, go to next fiber
 		below_9000 = False
 		for peak in peak_candidates:
-			if peak[0] < 9000:
+			if peak[0] < 9500:
 				below_9000 = True
 		if below_9000 ==False:
 			continue
@@ -296,21 +314,20 @@ for j in n.arange(len(plate_mjd)):
 		#Try to infer background redshift
 		#Generating all combinations of lines from above list to compare with candidates
 		detection = False
-		if (doublet == True and len(peak_candidates)<2):
+		if (doublet == True):
 			z_background = peak_candidates[doublet_index][0]/3727.24 - 1.0
 			if (z_background > z[i]+0.05):
 				detection = True
 				print '(Doublet) Lensed object at z1 = ', z_background 
-		elif (doublet == True and len(peak_candidates)>1):
-			z_background = peak_candidates[doublet_index][0]/3727.24 - 1.0
-			temp = [peak for peak in peak_candidates if peak[1]!=peak[7]]
-			compare = em_lines[1:5]
-			if z_background > z[i]+0.05 :
-				for peak in temp:
-					for line in compare:
-						if ( abs(peak[0]/line -1 - z_background) < 0.01):
-							detection = True
-							print '(Doublet+Multi) Lensed object at z1 = ', z_background, 'em_line: ', line 				
+			if len(peak_candidates):	
+				temp = [peak for peak in peak_candidates if peak[1]!=peak[7]]
+				compare = em_lines[1:5]
+				if z_background > z[i]+0.05 :
+					for peak in temp:
+						for line in compare:
+							if ( abs(peak[0]/line -1 - z_background) < 0.01):
+								detection = True
+								print '(Doublet+Multi) Lensed object at z1 = ', z_background, 'em_line: ', line 				
 		elif (doublet != True and len(peak_candidates) > 1 ):
 			compare = it.combinations(em_lines,len(peak_candidates))
 			for group in compare:
@@ -319,7 +336,9 @@ for j in n.arange(len(plate_mjd)):
 						if ( abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and peak_candidates[k][0]/group[k]-1.0 > (z[i] + 0.05) ):
 							detection = True
 							print '(Multi Lines) Lensed object at z = ', peak_candidates[k][0]/group[k] -1.0, 'em_lines: ', group[k], group[j]
-							
+		print doublet, detection
+		detection = True
+		doublet = True		
 		# Save surviving candidates
 		for k in range(len(peak_candidates)):
 			peak = peak_candidates[k]
@@ -385,16 +404,23 @@ for j in n.arange(len(plate_mjd)):
 			print ' '*60, '\r', "saving figure\r",
 			make_sure_path_exists(topdir + '/plots/')
 			p.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
-			#p.show()
+			p.show()
+			f = open(topdir + '/candidates.txt','a')
+			for item in detected:
+				if (doublet == True and len(peak_candidates)>1):
+					f.write('\n D + M : ' +  "\n" + str(item))
+					countDoublet +=1 
+				elif (doublet == True and len(peak_candidates)<2):
+					f.write('\n Doublet: ' +  "\n" + str(item))
+					countDoublet +=1 
+				elif (doublet != True and len(peak_candidates) > 1) :
+					f.write('\n Multi: ' +  "\n" + str(item))
+					countMulti =+1
+			f.close()
 	
 	print 'Time taken ', (datetime.datetime.now() - startTime)
 	detected = sorted(detected, key = lambda obj : obj[10], reverse = True)
-	f = open(topdir + '/candidates.txt','a')
-	for item in detected:
-		if (doublet == True and len(peak_candidates)<2):
-			f.write('Doublet: ' +  "\n" + str(item))
-		elif (doublet == True and len(peak_candidates)>1):
-			f.write('D + M : ' +  "\n" + str(item))
-		else:
-			f.write('Multi: ' +  "\n" + str(item))
-	f.close()
+
+f = open(topdir + '/candidates.txt','a')
+f.write('\n Doublet: ' + str(countDoublet) + ' D+M: ' + str(countDM) + ' Multi: ' + str(countMulti)	)
+f.close()

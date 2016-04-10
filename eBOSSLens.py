@@ -14,6 +14,7 @@ from matplotlib import pyplot as p
 import math
 from scipy.optimize import leastsq
 from scipy.optimize import minimize
+from scipy.optimize import curve_fit
 import datetime
 import copy
 from matplotlib import rcParams
@@ -70,6 +71,8 @@ def kernel(j,width,NormGauss,length):
 	ker[j-int(width*0.5):j+int(width*0.5)] = NormGauss
 	return ker
 	
+def gauss2chi2(params, xdata, ydata, ivar, x0):
+	return sum(ivar*(ydata - gauss(x=xdata, x_0=params[3], A=params[0], var=params[1])-gauss(x=xdata, x_0=params[4], A=params[2], var=params[1]))**2)/(len(xdata)-len(params) -1)
 
 # Check if a path exists, if not make it
 def make_sure_path_exists(path):
@@ -184,7 +187,7 @@ for j in n.arange(len(plate_mjd)):
 	startTime = datetime.datetime.now()
 
 	# Loop over objects
-	for i in n.array([580,62,254,920,86,512,267,609,200]): #n.arange(len(flux[:,0])):
+	for i in n.array([580,62,254,920,86,512,267,120,326,558]): #n.arange(len(flux[:,0])):
 		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   '): # or zwarning[i]!=0):
 			continue
 		peaks = []
@@ -237,12 +240,14 @@ for j in n.arange(len(plate_mjd)):
 			params, cov, infodict, mesg, ier = leastsq(func, init,
 				 args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0, llimit, ulimit),
 				 full_output=True)
-			res =  minimize(chi2g,init,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='TNC', bounds = [(0.2,10),(2,10)])
+			res =  minimize(chi2g,init,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='SLSQP', bounds = [(0.2,10),(1,8)])
 			params = res.x
 			residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]))**2)*ivar[i,:]
 			chisq =  sum(residue_squared)/(len(wave)-len(params) -1)
+			chigauss1 = chisq
+			
 			#Check for S/N > 4 fit
-			if not(cov is None or abs(params[0]/math.sqrt(cov[0,0])) < 4):
+			if not(cov is None):
 				peak[1] = chisq
 				peak[2] = params[0]
 				peak[3] = params[1]
@@ -251,23 +256,19 @@ for j in n.arange(len(plate_mjd)):
 				
 			#Doublet OII: Gaussian fit around x_0
 			if (x0 > 3727.0*(1+z[i])):
-				init2= [1.0,5,1.0,-5]
-				#params, cov, infodict, mesg, ier = leastsq(func2, init2,
-				#	args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0, llimit, ulimit),
-				#	full_output=True)
-				res = minimize(chi2,init2,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='TNC', bounds = [(0.1,3),(2,10),(0.1,3),(-7,7)])
-				params = res.x
-				residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]) -gauss(x=wave, x_0=x0-params[3], A=params[2], var=params[1]))**2)*ivar[i,:]
-				chisq = sum(residue_squared)/(len(wave)-len(params) -1)
+
+				res2 = minimize(gauss2chi2,[1.0,5,1.0,x0-1.5,x0+1.5],args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='SLSQP', bounds = [(0.1,3),(1,8),(0.1,3),(x0-7,x0),(x0,x0+7)])
+				params2 = res2.x
+				residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=params2[3], A=params2[0], var=params2[1]) - gauss(x=wave, x_0=params2[4], A=params2[2], var=params2[1]))**2)*ivar[i,:]
+				chisq2 = sum(residue_squared)/(len(wave)-len(params2) -1)
 				
-				#if (not(cov is None)): #or abs(params[0]/math.sqrt(cov[0,0])) < 4 or abs(params[2]/math.sqrt(cov[2,2])) < 4):
-				if abs(params[3])>1.5:	
-					peak[7] = chisq
-					peak[8] = params[0] #amp1
-					peak[9] = params[1] #var
-					peak[10] = params[2] #amp2
-					peak[11] = params[3] #delta x
-					peak[12] = 1.0 #cov[0,0] #err amp1
+				if abs(params2[3]-params2[4])>1.5:	
+					peak[7] = chisq2
+					peak[8] = params2[0] #amp1
+					peak[9] = params2[1] #var
+					peak[10] = params2[2] #amp2
+					peak[11] = params2[3] #x1
+					peak[12] = params2[4] #x2
 					peak[13] = 1.0#cov[2,2] #err var
 					peak[14] = 1.0#cov[1,1] #err amp2
 		print peak_candidates				
@@ -282,6 +283,7 @@ for j in n.arange(len(plate_mjd)):
 				chi2saved = peak[7]
 				doublet = True
 				doublet_index = k		
+		
 		
 		#Removing candidates that were not fitted : params still 0
 		peak_candidates = n.array([peak for peak in peak_candidates if (peak[2]!=0 or peak[7]==peak[1]!=0)])
@@ -349,14 +351,10 @@ for j in n.arange(len(plate_mjd)):
 			err_amp = peak[4]
 			err_var = peak[5]
 			if (k == doublet_index and doublet ==True):
-				#Specify special variables for one of two peaks
-				params = [peak[8],peak[9]]
-				err_amp = peak[12]
-				err_var = peak[13]
 				# Save doublet gaussians
-				peaks.append([peak[0], peak[8], peak[9]])
+				peaks.append([peak[11], peak[8], peak[9]])
 				peaks_err.append([math.sqrt(peak[12]*chisq_saved), math.sqrt(peak[13]*chisq_saved)])
-				peaks.append([peak[0]-peak[11], peak[10], peak[9]])
+				peaks.append([peak[12], peak[10], peak[9]])
 				peaks_err.append([math.sqrt(peak[14]*chisq_saved), math.sqrt(peak[13]*chisq_saved)])
 			else:
 				# Save emission line 
@@ -374,19 +372,12 @@ for j in n.arange(len(plate_mjd)):
 			
 		#Graphs
 		if ((peak_number>1 or doublet==True) and below_9000 and detection):
-			#p.subplot(2,1,1)
-			#p.plot(wave, flux[i,:], 'k', hold=False)
-			#p.plot(wave, synflux[i,:], 'g', hold=True)
-			#p.plot(wave, ivar[i,:], 'r', hold=True)
 			p.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+
 				', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+
 				'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
-			#p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
-			
 			ax = p.subplot(1,1,1)
 			#p.plot(wave, reduced_flux[i,:]*sqrtsaved,'k', hold=False)
 			p.plot(wave, reduced_flux[i,:],'k', hold=True)
-			#p.errorbar(wave, reduced_flux[i,:], yerr= 1.0/sqrtivar[i,:])
 			p.xlabel('$Wavelength\, (Angstroms)$')
 			p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
 			#Save candidate coordinates and peaks

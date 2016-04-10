@@ -4,7 +4,7 @@
 
 # TO DO
 # Sort objects by # significant peaks
-
+# plots centered on doublets
 
 # Imports
 import numpy as n
@@ -18,7 +18,6 @@ from scipy.optimize import curve_fit
 import datetime
 import copy
 from matplotlib import rcParams
-#rcParams['text.usetex'] = True
 import os
 import errno
 import itertools as it
@@ -62,33 +61,19 @@ def make_sure_path_exists(path):
     except OSError as exception:
         if exception.errno != errno.EEXIST:
             raise
-
 #-----------------------------------------------------------------------------------------------------
 # Set topdir:
 topdir = '..'
 
-#print " "*60, "\ropening platelist.fits\r",
-#hdulist = pf.open('/fits_files/plates-dr12.fits')
-#platelist = hdulist[1].data
-#hdulist.close()
-#hdulist = 0
-
 ## import list of plates to analyze
 print " "*20, "importing list of plates",
-#plate_mjd = [line.strip() for line in open('Stripe82.platelist.txt')]
-plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_list.txt')]
-
-#for i in n.arange(len(plate_mjd)):
-	#for k in n.arange(len(platelist['plate'])):
-		#if (int(plate_mjd[i]) == platelist['plate'][k]):
-			#plate_mjd[i] = [int(plate_mjd[i]) , platelist['mjd'][k]]
-			#break
+plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_mjd.txt')]
 
 plate = 0
 fiberid = [0]
 
 f = open(topdir + '/candidates.txt','a')
-f.write('Type RA DEC plate mjd fiber peak_wavelength peak_amp peak_amp_err peak_width peak_width_err  peak_number\n')
+f.write('Type RA DEC plate mjd fiber peak_wavelength peak_amp peak_width peak_number\n')
 f.close()
 
 #Set of emission lines used for lensed galaxy detection OII, Hb, OIII, OIII, Ha
@@ -148,10 +133,6 @@ for j in n.arange(len(plate_mjd)):
 	detected = []
 	sqrtivar=copy.deepcopy(ivar)
 	
-	#Upper and lower limit on amplitude and variance of peaks
-	llimit = [0.1, 2]
-	ulimit = [20, 15]
-	
 	# Masks atmosphere
 	ivar[:,542:551] = 0 # Hg line
 	ivar[:,868:873] = 0 # Hg line
@@ -162,13 +143,13 @@ for j in n.arange(len(plate_mjd)):
 	ivar[:,423:428] = 0 # Ca absorption
 	ivar[:,460:467] = 0 # Ca absorption
 	
-	#Mask 5580 A galaxy spectrums
+	#Mask 5580 A galaxy spectra
 	ivar[:,int((n.log10(5570)-c0)/c1) : int((n.log10(5585)-c0)/c1)] = 0
 	
 	startTime = datetime.datetime.now()
 
 	# Loop over objects
-	for i in n.array([580,62,254,920,86,512,267,120,326,558]): #n.arange(len(flux[:,0])):
+	for i in n.arange(len(flux[:,0])):
 		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   '): # or zwarning[i]!=0):
 			continue
 		peaks = []
@@ -238,8 +219,7 @@ for j in n.arange(len(plate_mjd)):
 					peak[8] = params2[1] #var
 					peak[9] = params2[3] #x1
 					peak[10] = params2[4] #x2
-					
-				
+									
 		#Finding peak with lowest chi square for doublet and see if it is better fitted by single line or not
 		doublet_index = 0
 		chi2saved = 1000.0
@@ -251,7 +231,6 @@ for j in n.arange(len(plate_mjd)):
 				chi2saved = peak[5]
 				doublet = True
 				doublet_index = k		
-		
 		
 		#Removing candidates that were not fitted : params still 0
 		peak_candidates = n.array([peak for peak in peak_candidates if (peak[2]!=0 or peak[5]==peak[1]!=0)])
@@ -297,7 +276,7 @@ for j in n.arange(len(plate_mjd)):
 						for line in compare:
 							if ( abs(peak[0]/line -1 - z_background) < 0.01):
 								detection = True
-								print '(Doublet+Multi) Lensed object at z1 = ', z_background, 'em_line: ', line 				
+								print '(Doublet+Multi) Lensed object at z1 = ', z_background, 'em_line: ', line			
 		elif (doublet != True and len(peak_candidates) > 1 ):
 			compare = it.combinations(em_lines,len(peak_candidates))
 			for group in compare:
@@ -306,9 +285,7 @@ for j in n.arange(len(plate_mjd)):
 						if ( abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and peak_candidates[k][0]/group[k]-1.0 > (z[i] + 0.05) ):
 							detection = True
 							print '(Multi Lines) Lensed object at z = ', peak_candidates[k][0]/group[k] -1.0, 'em_lines: ', group[k], group[j]
-		print doublet, detection
-		detection = True
-		doublet = True		
+
 		# Save surviving candidates
 		for k in range(len(peak_candidates)):
 			peak = peak_candidates[k]
@@ -360,13 +337,13 @@ for j in n.arange(len(plate_mjd)):
 			for item in detected:
 				if (doublet == True and len(peak_candidates)>1):
 					f.write('\n D + M : ' +  "\n" + str(item))
-					countDoublet +=1 
+					countDoublet +=1.0/len(peak_candidates)
 				elif (doublet == True and len(peak_candidates)<2):
 					f.write('\n Doublet: ' +  "\n" + str(item))
 					countDoublet +=1 
 				elif (doublet != True and len(peak_candidates) > 1) :
 					f.write('\n Multi: ' +  "\n" + str(item))
-					countMulti =+1
+					countMulti =+1.0/len(peak_candidates)
 			f.close()
 	
 	print 'Time taken ', (datetime.datetime.now() - startTime)

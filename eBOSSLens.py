@@ -32,10 +32,10 @@ def gauss(x,x_0,A,var):
 
 #Chi square for one gaussian
 def chi2g(params, xdata, ydata, ivar, x0):
-	return sum(ivar*(ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1]))**2)/(len(xdata)-len(params)-1)
+	return n.sum(ivar*(ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1]))**2)/(len(xdata)-len(params)-1)
 #Chi square for Doublet
 def chi2D(params, xdata, ydata, ivar):
-	return sum(ivar*(ydata - gauss(x=xdata, x_0=params[3], A=params[0], var=params[1])-gauss(x=xdata, x_0=params[4], A=params[2], var=params[1]))**2)/(len(xdata)-len(params) -1)
+	return n.sum(ivar*(ydata - gauss(x=xdata, x_0=params[3], A=params[0], var=params[1])-gauss(x=xdata, x_0=params[4], A=params[2], var=params[1]))**2)/(len(xdata)-len(params) -1)
 
 # Check if x0 is near any emission line redshifted by z
 def nearline(x0, zline, fiberid, z, mjd, plate):
@@ -66,15 +66,23 @@ def make_sure_path_exists(path):
 topdir = '..'
 
 ## import list of plates to analyze
-print " "*20, "importing list of plates",
-plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_mjd.txt')]
+plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_list1.txt')]
 
 plate = 0
 fiberid = [0]
 
-f = open(topdir + '/candidates.txt','a')
-f.write('Type RA DEC plate mjd fiber peak_wavelength peak_amp peak_width peak_number\n')
+f = open(topdir + '/candidates_doublet.txt','a')
+f.write('Score z RA DEC plate mjd fiber peak_wavelength \n')
 f.close()
+f = open(topdir + '/candidates_DM.txt','a')
+f.write('Score z RA DEC plate mjd fiber peak_wavelength \n')
+f.close()
+f = open(topdir + '/candidates_multi.txt','a')
+f.write('RA DEC plate mjd fiber em_lines and z \n')
+f.close()
+
+
+
 
 #Set of emission lines used for lensed galaxy detection OII, Hb, OIII, OIII, Ha
 em_lines = n.array([3726.5,4861.325,4958.911,5006.843,6562.801])
@@ -84,7 +92,6 @@ countMulti = 0
 
 #Loop over plates
 for j in n.arange(len(plate_mjd)):
-	#print ' '*60, '\r', "initialization plate " , plate_mjd[j][0], "\r",
 	print "initialization plate " , plate_mjd[j][0], "\n",
 	
 	# Initialization
@@ -117,6 +124,7 @@ for j in n.arange(len(plate_mjd)):
 	RA = hdulist[1].data.field('PLUG_RA')
 	DEC = hdulist[1].data.field('PLUG_DEC')
 	obj_class = hdulist[1].data.field('CLASS')
+	obj_type = hdulist[1].data.field('OBJTYPE')
 	z = hdulist[1].data.field('Z')
 	zwarning = hdulist[1].data.field('ZWARNING')
 	z_err = hdulist[1].data.field('Z_ERR')
@@ -150,11 +158,10 @@ for j in n.arange(len(plate_mjd)):
 
 	# Loop over objects
 	for i in n.arange(len(flux[:,0])):
-		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   '): # or zwarning[i]!=0):
+		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): # or zwarning[i]!=0):
 			continue
 		peaks = []
 		peak_number = len(peaks)
-		searchpeaks = True
 		doublet = None
 		
 		sqrtsaved = n.sqrt(ivar[i,:])
@@ -165,15 +172,15 @@ for j in n.arange(len(plate_mjd)):
 		sig = 2.0
 		## Prepare normalized gaussian
 		NormGauss = gauss(n.linspace(-width*0.5,width*0.5,width),0.0,1.0,sig)
-		NormGauss = NormGauss/sum(NormGauss)
-		Cj1 = n.array([sum(reduced_flux[i,:]*kernel(j+0.5*width,width,NormGauss,len(wave))*ivar[i,:]) for j in range(int(len(wave)-width))])
-		Cj2 = n.array([sum(ivar[i,:]*kernel(j+0.5*width,width,NormGauss,len(wave))**2) for j in range(int(len(wave)-width))])
+		NormGauss = NormGauss/n.sum(NormGauss)
+		Cj1 = n.array([n.sum(reduced_flux[i,:]*kernel(j+0.5*width,width,NormGauss,len(wave))*ivar[i,:]) for j in range(int(len(wave)-width))])
+		Cj2 = n.array([n.sum(ivar[i,:]*kernel(j+0.5*width,width,NormGauss,len(wave))**2) for j in range(int(len(wave)-width))])
 		SN = n.zeros(len(wave))
 		SN[width*0.5:len(wave)-width*0.5] = Cj1/n.sqrt(Cj2)
 		
 		peak_candidates = n.array([(x0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if test>6.0])
 		# Legend key x0: wavelength(x0) chisq_doublet amp_gauss var_gauss S/N chisq_doublet amp1_doublet amp2_doublet var_doublet x1 x2
-
+		
 		#Keep only center of candidate peaks
 		k = 0
 		while (k < (len(peak_candidates)-1)):
@@ -185,7 +192,6 @@ for j in n.arange(len(plate_mjd)):
 					peak_candidates = n.delete(peak_candidates,k+1,axis = 0)
 					k = k-1					
 			k = k+1
-			
 		#Search for suitable peak candidates
 		for peak in peak_candidates:
 			x0 = peak[0]
@@ -196,7 +202,7 @@ for j in n.arange(len(plate_mjd)):
 			res =  minimize(chi2g,init,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='SLSQP', bounds = [(0.1,5),(1,8)])
 			params = res.x
 			residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]))**2)*ivar[i,:]
-			chisq =  sum(residue_squared)/(len(wave)-len(params) -1)
+			chisq =  n.sum(residue_squared)/(len(wave)-len(params) -1)
 			chigauss1 = chisq
 			#Check for not to high chi square and save
 			if not(chisq > 2.0):
@@ -210,7 +216,7 @@ for j in n.arange(len(plate_mjd)):
 				res2 = minimize(chi2D,[1.0,5,1.0,x0-1.5,x0+1.5],args=(wave, reduced_flux[i,:],ivar[i,:]), method='SLSQP', bounds = [(0.1,5),(1,8),(0.1,5),(x0-7,x0),(x0,x0+7)])
 				params2 = res2.x
 				residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=params2[3], A=params2[0], var=params2[1]) - gauss(x=wave, x_0=params2[4], A=params2[2], var=params2[1]))**2)*ivar[i,:]
-				chisq2 = sum(residue_squared)/(len(wave)-len(params2) -1)
+				chisq2 = n.sum(residue_squared)/(len(wave)-len(params2) -1)
 				
 				if abs(params2[3]-params2[4])>1.5:	
 					peak[5] = chisq2
@@ -263,12 +269,19 @@ for j in n.arange(len(plate_mjd)):
 		#Try to infer background redshift
 		#Generating all combinations of lines from above list to compare with candidates
 		detection = False
+		score = 0.0
 		if (doublet == True):
+			fileD = open(topdir + '/candidates_doublet.txt','a')
 			z_background = peak_candidates[doublet_index][0]/3727.24 - 1.0
 			if (z_background > z[i]+0.05):
 				detection = True
-				print '(Doublet) Lensed object at z1 = ', z_background 
+				score += peak_candidates[doublet_index][4]**2
+				fileD.write('\n' +str([score,z_background, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],peak_candidates[doublet_index][9]]))
+				fileD.close()
+				#print '(Doublet) Lensed object at z1 = ', z_background 
 			if len(peak_candidates):	
+				fileDM = open(topdir + '/candidates_DM.txt','a')
+				confirmed_lines = []
 				temp = [peak for peak in peak_candidates if peak[1]!=peak[5]]
 				compare = em_lines[1:5]
 				if z_background > z[i]+0.05 :
@@ -276,16 +289,26 @@ for j in n.arange(len(plate_mjd)):
 						for line in compare:
 							if ( abs(peak[0]/line -1 - z_background) < 0.01):
 								detection = True
-								print '(Doublet+Multi) Lensed object at z1 = ', z_background, 'em_line: ', line			
+								confirmed_lines.append(line)
+								score+= peak[4]**2
+								#print '(Doublet+Multi) Lensed object at z1 = ', z_background, 'em_line: ', line	
+					fileDM.write('\n'+str([score,z_background, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
+					fileDM.close()
 		elif (doublet != True and len(peak_candidates) > 1 ):
 			compare = it.combinations(em_lines,len(peak_candidates))
+			confirmed_lines = []
+			fileM = open(topdir + '/candidates_multi.txt','a')
 			for group in compare:
 				for k in range(len(peak_candidates)):
 					for j in range(k+1,len(peak_candidates)):
 						if ( abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and peak_candidates[k][0]/group[k]-1.0 > (z[i] + 0.05) ):
 							detection = True
-							print '(Multi Lines) Lensed object at z = ', peak_candidates[k][0]/group[k] -1.0, 'em_lines: ', group[k], group[j]
-
+							confirmed_lines.append([group, peak_candidates[k][0]/group[k]-1.0])
+							score+= peak_candidates[j][4]**2+peak_candidates[k][4]**2
+							#print '(Multi Lines) Lensed object at z = ', peak_candidates[k][0]/group[k] -1.0, 'em_lines: ', group[k], group[j]
+			fileM.write('\n'+str([score, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
+			fileM.close()
+		centerD = 0.0
 		# Save surviving candidates
 		for k in range(len(peak_candidates)):
 			peak = peak_candidates[k]
@@ -294,6 +317,8 @@ for j in n.arange(len(plate_mjd)):
 			chisq_saved = peak[1]
 			params = [peak[2],peak[3]] #amplitude, variance
 			if (k == doublet_index and doublet ==True):
+				#Doublet wavelength saved
+				centerD = int(((math.log(x0_saved)/math.log(10))-c0)/c1)
 				# Save doublet gaussians
 				peaks.append([peak[9], peak[6], peak[8]])
 				peaks.append([peak[10], peak[7], peak[8]])
@@ -308,8 +333,8 @@ for j in n.arange(len(plate_mjd)):
 			ivar[i][max(center-delta,0):min(center+delta,len(sqrtivar[i,:])-1)+1] = 0
 		
 		peak_number = len(peak_candidates)
-		print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number,  "\n",		
-			
+		#print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number,  "\n",		
+	
 		#Graphs
 		if ((peak_number>1 or doublet==True) and below_9000 and detection):
 			p.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+
@@ -323,32 +348,31 @@ for j in n.arange(len(plate_mjd)):
 			#Save candidate coordinates and peaks
 			fit=0
 			for k in n.arange(len(peaks)):
-				detected.append([RA[i], DEC[i], int(plate), int(mjd), fiberid[i],
-						peaks[k][0], peaks[k][1], math.sqrt(peaks[k][2]), peak_number])
+				#detected.append([RA[i], DEC[i], int(plate), int(mjd), fiberid[i],
+				#		peaks[k][0], peaks[k][1], math.sqrt(peaks[k][2]), peak_number])
 				fit = fit + gauss(wave, x_0 = peaks[k][0] , A=peaks[k][1], var=peaks[k][2])
 
 			p.plot(wave,fit,'r',hold=True)
 			ax.set_ylim(ymin = -0.5, ymax = 5)
-			print ' '*60, '\r', "saving figure\r",
 			make_sure_path_exists(topdir + '/plots/')
 			p.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
-			p.show()
-			f = open(topdir + '/candidates.txt','a')
-			for item in detected:
-				if (doublet == True and len(peak_candidates)>1):
-					f.write('\n D + M : ' +  "\n" + str(item))
-					countDoublet +=1.0/len(peak_candidates)
-				elif (doublet == True and len(peak_candidates)<2):
-					f.write('\n Doublet: ' +  "\n" + str(item))
-					countDoublet +=1 
-				elif (doublet != True and len(peak_candidates) > 1) :
-					f.write('\n Multi: ' +  "\n" + str(item))
-					countMulti =+1.0/len(peak_candidates)
-			f.close()
+			#p.show()
+			#f = open(topdir + '/candidates4.txt','a')
+			#for item in detected:
+				#if (doublet == True and len(peak_candidates)>1):
+					#f.write('\n D + M : ' +  "\n" + str(item))
+					#countDoublet +=1.0/len(peak_candidates)
+				#elif (doublet == True and len(peak_candidates)<2):
+					#f.write('\n Doublet: ' +  "\n" + str(item))
+					#countDoublet +=1 
+				#elif (doublet != True and len(peak_candidates) > 1) :
+					#f.write('\n Multi: ' +  "\n" + str(item))
+					#countMulti =+1.0/len(peak_candidates)
+			#f.close()
 	
 	print 'Time taken ', (datetime.datetime.now() - startTime)
 	detected = sorted(detected, key = lambda obj : obj[8], reverse = True)
 
-f = open(topdir + '/candidates.txt','a')
+f = open(topdir + '/candidates_multi.txt','a')
 f.write('\n Doublet: ' + str(countDoublet) + ' D+M: ' + str(countDM) + ' Multi: ' + str(countMulti)	)
 f.close()

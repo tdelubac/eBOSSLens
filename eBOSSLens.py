@@ -66,7 +66,7 @@ def make_sure_path_exists(path):
 topdir = '..'
 
 ## import list of plates to analyze
-plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_list1.txt')]
+plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_list4.txt')]
 
 plate = 0
 fiberid = [0]
@@ -78,11 +78,8 @@ f = open(topdir + '/candidates_DM.txt','a')
 f.write('Score z RA DEC plate mjd fiber peak_wavelength \n')
 f.close()
 f = open(topdir + '/candidates_multi.txt','a')
-f.write('RA DEC plate mjd fiber em_lines and z \n')
+f.write('Score RA DEC plate mjd fiber em_lines and z \n')
 f.close()
-
-
-
 
 #Set of emission lines used for lensed galaxy detection OII, Hb, OIII, OIII, Ha
 em_lines = n.array([3726.5,4861.325,4958.911,5006.843,6562.801])

@@ -10,17 +10,24 @@
 import numpy as n
 import pyfits as pf
 import matplotlib as mpl
+#mpl.use('Agg')
 from matplotlib import pyplot as p
 import math
 from scipy.optimize import leastsq
 from scipy.optimize import minimize
-from scipy.optimize import curve_fit
+from scipy.integrate import quad
 import datetime
 import copy
 from matplotlib import rcParams
 import os
 import errno
 import itertools as it
+#-----------------------------------------------------------------------------------------------------
+# Constants: flat Universe is assumed, OmegaLambda = 0.7, OmegaM = 0.3
+H0 = 72e3 #m s-1 Mpc-1
+c = 2.998e8 #m s-1
+OmegaM = 0.3
+OmegaL = 0.7
 
 #-----------------------------------------------------------------------------------------------------
 # Function definitions
@@ -54,6 +61,19 @@ def kernel(j,width,NormGauss,length):
 	ker[j-int(width*0.5):j+int(width*0.5)] = NormGauss
 	return ker
 	
+# Estimated Einstein Radius from Single Isothermal Sphere (SIE) model
+def radEinstein(z1,z2,vdisp):
+	#compute ang. diam. distances
+	Ds = ((c/H0)*quad(x12,0.0,z2)[0])/(1+z2)
+	Dls = ((c/H0)*quad(x12,z1,z2)[0])/(1+z2)
+	### return value in arcsec
+	coeff = 3600*(180/n.pi)
+	return coeff*4.0*n.pi*vdisp*vdisp*Dls/(c*c*Ds)
+
+#Function needed for numerical computation of angular diameter distance
+def x12(z):
+	return 1.0/n.sqrt((1-OmegaM-OmegaL)*(1+z)*(1+z) + OmegaM*(1+z)**3 + OmegaL)
+
 # Check if a path exists, if not make it
 def make_sure_path_exists(path):
     try:
@@ -66,19 +86,19 @@ def make_sure_path_exists(path):
 topdir = '..'
 
 ## import list of plates to analyze
-plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_list4.txt')]
+plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test.txt')]
 
 plate = 0
 fiberid = [0]
 
 f = open(topdir + '/candidates_doublet.txt','a')
-f.write('Score z RA DEC plate mjd fiber peak_wavelength \n')
+#f.write('Score z RA DEC plate mjd fiber peak_wavelength \n')
 f.close()
 f = open(topdir + '/candidates_DM.txt','a')
-f.write('Score z RA DEC plate mjd fiber peak_wavelength \n')
+#f.write('Score z RA DEC plate mjd fiber peak_wavelength \n')
 f.close()
 f = open(topdir + '/candidates_multi.txt','a')
-f.write('Score RA DEC plate mjd fiber em_lines and z \n')
+#f.write('Score RA DEC plate mjd fiber em_lines and z \n')
 f.close()
 
 #Set of emission lines used for lensed galaxy detection OII, Hb, OIII, OIII, Ha
@@ -89,7 +109,7 @@ countMulti = 0
 
 #Loop over plates
 for j in n.arange(len(plate_mjd)):
-	print "initialization plate " , plate_mjd[j][0], "\n",
+	#print "initialization plate " , plate_mjd[j][0], "\n",
 	
 	# Initialization
 	flux = 0
@@ -115,6 +135,8 @@ for j in n.arange(len(plate_mjd)):
 	hdulist.close()
 	hdulist = 0
 	hdulist = pf.open(zbfile)
+	vdisp = hdulist[1].data.field('VDISP')
+	vdisp_err = hdulist[1].data.field('VDISP_ERR')
 	synflux = hdulist[2].data
 	#zstruc = hdulist[1].data
 	fiberid = hdulist[1].data.field('FIBERID')
@@ -135,7 +157,6 @@ for j in n.arange(len(plate_mjd)):
 	#-----------------------------------------------------------------------------------------------------
 
 	reduced_flux = n.array(flux - synflux)
-	detected = []
 	sqrtivar=copy.deepcopy(ivar)
 	
 	# Masks atmosphere
@@ -154,14 +175,17 @@ for j in n.arange(len(plate_mjd)):
 	startTime = datetime.datetime.now()
 
 	# Loop over objects
-	for i in n.arange(len(flux[:,0])):
-		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): # or zwarning[i]!=0):
+	for i in n.array([668,512,236,68,74,602,584,330,846,609,620]):  #n.arange(len(flux[:,0])):
+		
+		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
+			continue
+		if (vdisp[i] < 100 or vdisp_err[i] < 0.0 or zwarning[i]!=0):
+			print "plate ", plate, " fiber ", fiberid[i], vdisp[i] , vdisp_err[i], zwarning[i]
 			continue
 		peaks = []
 		peak_number = len(peaks)
 		doublet = None
 		
-		sqrtsaved = n.sqrt(ivar[i,:])
 		sqrtivar[i,:] = n.sqrt(ivar[i,:])
 		
 		### Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks
@@ -192,8 +216,9 @@ for j in n.arange(len(plate_mjd)):
 		#Search for suitable peak candidates
 		for peak in peak_candidates:
 			x0 = peak[0]
+			print "plate ", plate, " fiber ", fiberid[i], x0
 			if nearline(x0, zline, fiberid[i], z[i], int(mjd), int(plate)):
-				continue
+ 				continue
 			#Single Line: Gaussian fit around x_0
 			init = [1,2]
 			res =  minimize(chi2g,init,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='SLSQP', bounds = [(0.1,5),(1,8)])
@@ -233,13 +258,13 @@ for j in n.arange(len(plate_mjd)):
 				peak[1] = peak[5]
 				chi2saved = peak[5]
 				doublet = True
-				doublet_index = k		
+				doublet_index = k
+		 	
 		
 		#Removing candidates that were not fitted : params still 0
 		peak_candidates = n.array([peak for peak in peak_candidates if (peak[2]!=0 or peak[5]==peak[1]!=0)])
 		if len(peak_candidates) == 0:
 			continue
-		
 		#Sorting candidates by chi square
 		peak_candidates = sorted(peak_candidates, key=lambda peak: peak[1])
 		
@@ -264,33 +289,35 @@ for j in n.arange(len(plate_mjd)):
 			continue
 			
 		#Try to infer background redshift
-		#Generating all combinations of lines from above list to compare with candidates
 		detection = False
 		score = 0.0
+		
 		if (doublet == True):
 			fileD = open(topdir + '/candidates_doublet.txt','a')
-			z_background = peak_candidates[doublet_index][0]/3727.24 - 1.0
-			if (z_background > z[i]+0.05):
+			z_s = peak_candidates[doublet_index][0]/3727.24 - 1.0
+			if (z_s > z[i]+0.05):
 				detection = True
 				score += peak_candidates[doublet_index][4]**2
-				fileD.write('\n' +str([score,z_background, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],peak_candidates[doublet_index][9]]))
+				#fileD.write('\n' +str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],peak_candidates[doublet_index][9]]))
 				fileD.close()
-				#print '(Doublet) Lensed object at z1 = ', z_background 
+				#print '(Doublet) Lensed object at z1 = ', z_s 
 			if len(peak_candidates):	
 				fileDM = open(topdir + '/candidates_DM.txt','a')
 				confirmed_lines = []
+				#Generating all combinations of lines from above list to compare with candidates
 				temp = [peak for peak in peak_candidates if peak[1]!=peak[5]]
 				compare = em_lines[1:5]
-				if z_background > z[i]+0.05 :
+				if z_s > z[i]+0.05 :
 					for peak in temp:
 						for line in compare:
-							if ( abs(peak[0]/line -1 - z_background) < 0.01):
+							if ( abs(peak[0]/line -1 - z_s) < 0.01):
 								detection = True
 								confirmed_lines.append(line)
 								score+= peak[4]**2
-								#print '(Doublet+Multi) Lensed object at z1 = ', z_background, 'em_line: ', line	
-					fileDM.write('\n'+str([score,z_background, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
-					fileDM.close()
+								#print '(Doublet+Multi) Lensed object at z1 = ', z_s, 'em_line: ', line	
+					if confirmed_lines != []:
+						#fileDM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
+						fileDM.close()
 		elif (doublet != True and len(peak_candidates) > 1 ):
 			compare = it.combinations(em_lines,len(peak_candidates))
 			confirmed_lines = []
@@ -300,12 +327,13 @@ for j in n.arange(len(plate_mjd)):
 					for j in range(k+1,len(peak_candidates)):
 						if ( abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and peak_candidates[k][0]/group[k]-1.0 > (z[i] + 0.05) ):
 							detection = True
+							z_s = peak_candidates[k][0]/group[k]-1.0
 							confirmed_lines.append([group, peak_candidates[k][0]/group[k]-1.0])
 							score+= peak_candidates[j][4]**2+peak_candidates[k][4]**2
 							#print '(Multi Lines) Lensed object at z = ', peak_candidates[k][0]/group[k] -1.0, 'em_lines: ', group[k], group[j]
-			fileM.write('\n'+str([score, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
-			fileM.close()
-		centerD = 0.0
+			if confirmed_lines != []:
+				#fileM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score, z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
+				fileM.close()
 		# Save surviving candidates
 		for k in range(len(peak_candidates)):
 			peak = peak_candidates[k]
@@ -332,44 +360,37 @@ for j in n.arange(len(plate_mjd)):
 		peak_number = len(peak_candidates)
 		#print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number,  "\n",		
 	
+		######################################
+		#TEST MODE VALUES
+		print 'Doublet: ', doublet,'9000: ', below_9000, 'Detection: ', detection
+		detection = True
+		doublet = True
+		below_9000 = True
+		print peak_candidates
+		######################################
+		
+
 		#Graphs
 		if ((peak_number>1 or doublet==True) and below_9000 and detection):
-			p.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+
-				', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+
-				'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
+			fig = p.figure()
 			ax = p.subplot(1,1,1)
-			#p.plot(wave, reduced_flux[i,:]*sqrtsaved,'k', hold=False)
-			p.plot(wave, reduced_flux[i,:],'k', hold=True)
+			p.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
+			ax.plot(wave, reduced_flux[i,:],'k')
 			p.xlabel('$Wavelength\, (Angstroms)$')
 			p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
 			#Save candidate coordinates and peaks
 			fit=0
 			for k in n.arange(len(peaks)):
-				#detected.append([RA[i], DEC[i], int(plate), int(mjd), fiberid[i],
-				#		peaks[k][0], peaks[k][1], math.sqrt(peaks[k][2]), peak_number])
 				fit = fit + gauss(wave, x_0 = peaks[k][0] , A=peaks[k][1], var=peaks[k][2])
-
-			p.plot(wave,fit,'r',hold=True)
-			ax.set_ylim(ymin = -0.5, ymax = 5)
+			ax.plot(wave,fit,'r')
 			make_sure_path_exists(topdir + '/plots/')
-			p.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
-			#p.show()
-			#f = open(topdir + '/candidates4.txt','a')
-			#for item in detected:
-				#if (doublet == True and len(peak_candidates)>1):
-					#f.write('\n D + M : ' +  "\n" + str(item))
-					#countDoublet +=1.0/len(peak_candidates)
-				#elif (doublet == True and len(peak_candidates)<2):
-					#f.write('\n Doublet: ' +  "\n" + str(item))
-					#countDoublet +=1 
-				#elif (doublet != True and len(peak_candidates) > 1) :
-					#f.write('\n Multi: ' +  "\n" + str(item))
-					#countMulti =+1.0/len(peak_candidates)
-			#f.close()
+			# Only plot the doublet in a window
+			#if doublet==True:
+			#	ind = int(((math.log(peak_candidates[doublet_index][0])/math.log(10))-c0)/c1)
+			#	p.ylim([-0.5,reduced_flux[i,ind]+1.0])
+			#	p.xlim([peak_candidates[doublet_index][0]-30,  peak_candidates[doublet_index][0]+30])
+			p.show()
+			#p.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
 	
-	print 'Time taken ', (datetime.datetime.now() - startTime)
-	detected = sorted(detected, key = lambda obj : obj[8], reverse = True)
+	#print 'Time taken ', (datetime.datetime.now() - startTime)
 
-f = open(topdir + '/candidates_multi.txt','a')
-f.write('\n Doublet: ' + str(countDoublet) + ' D+M: ' + str(countDM) + ' Multi: ' + str(countMulti)	)
-f.close()

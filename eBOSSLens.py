@@ -1,17 +1,14 @@
 # Removes the fitted template from the spectra
 # Fits the peaks with a Gaussian profile
-# Based on PlotSpec.py
-
-# TO DO
-# Sort objects by # significant peaks
-# plots centered on doublets
+# Determine OII doublet and lensed object redshift
+# Estimate the Eintein radius of the lensing system
 
 # Imports
 import numpy as n
 import pyfits as pf
 import matplotlib as mpl
-#mpl.use('Agg')
-from matplotlib import pyplot as p
+mpl.use('Agg')
+from matplotlib import pyplot as plt
 import math
 from scipy.optimize import leastsq
 from scipy.optimize import minimize
@@ -46,9 +43,9 @@ def chi2D(params, xdata, ydata, ivar):
 
 # Check if x0 is near any emission line redshifted by z
 def nearline(x0, zline, fiberid, z, mjd, plate):
-	match1 = n.logical_and(abs(zline['linewave']*(1+zline['linez']) -x0) < 3*zline['lineew'], zline['linearea']!=0)
+	match1 = n.logical_and(abs(zline['linewave']*(1+zline['linez']) -x0) < 10, zline['lineew']/zline['lineew_err'] > 6)
 	match2 = n.logical_and(zline['fiberid']==fiberid,zline['mjd']==int(mjd))
-	match3 = n.logical_and(zline['plate']==int(plate), zline['linearea']/zline['linearea_err'] > 2)
+	match3 = n.logical_and(zline['plate']==int(plate), zline['lineew_err']>0)
 	match4 = n.logical_and(match1,n.logical_and(match2,match3))
 	if (n.sum(match4)>0):
 		return True
@@ -86,7 +83,7 @@ def make_sure_path_exists(path):
 topdir = '..'
 
 ## import list of plates to analyze
-plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test.txt')]
+plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_list1.txt')]
 
 plate = 0
 fiberid = [0]
@@ -155,7 +152,9 @@ for j in n.arange(len(plate_mjd)):
 	hdulist = 0
 	##### PlotSpec ends here 
 	#-----------------------------------------------------------------------------------------------------
-
+	testMode  = False
+	
+	
 	reduced_flux = n.array(flux - synflux)
 	sqrtivar=copy.deepcopy(ivar)
 	
@@ -175,13 +174,13 @@ for j in n.arange(len(plate_mjd)):
 	startTime = datetime.datetime.now()
 
 	# Loop over objects
-	for i in n.array([668,512,236,68,74,602,584,330,846,609,620]):  #n.arange(len(flux[:,0])):
+	for i in n.arange(len(flux[:,0])):
 		
 		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
 			continue
-		if (vdisp[i] < 100 or vdisp_err[i] < 0.0 or zwarning[i]!=0):
-			print "plate ", plate, " fiber ", fiberid[i], vdisp[i] , vdisp_err[i], zwarning[i]
-			continue
+		#if (vdisp[i] < 100 or vdisp_err[i] < 0.0 or zwarning[i]!=0):
+			#print "plate ", plate, " fiber ", fiberid[i], vdisp[i] , vdisp_err[i], zwarning[i]
+			#continue
 		peaks = []
 		peak_number = len(peaks)
 		doublet = None
@@ -216,7 +215,6 @@ for j in n.arange(len(plate_mjd)):
 		#Search for suitable peak candidates
 		for peak in peak_candidates:
 			x0 = peak[0]
-			print "plate ", plate, " fiber ", fiberid[i], x0
 			if nearline(x0, zline, fiberid[i], z[i], int(mjd), int(plate)):
  				continue
 			#Single Line: Gaussian fit around x_0
@@ -298,9 +296,9 @@ for j in n.arange(len(plate_mjd)):
 			if (z_s > z[i]+0.05):
 				detection = True
 				score += peak_candidates[doublet_index][4]**2
-				#fileD.write('\n' +str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],peak_candidates[doublet_index][9]]))
+				if testMode == False:
+					fileD.write('\n' +str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],peak_candidates[doublet_index][9]]))
 				fileD.close()
-				#print '(Doublet) Lensed object at z1 = ', z_s 
 			if len(peak_candidates):	
 				fileDM = open(topdir + '/candidates_DM.txt','a')
 				confirmed_lines = []
@@ -314,10 +312,9 @@ for j in n.arange(len(plate_mjd)):
 								detection = True
 								confirmed_lines.append(line)
 								score+= peak[4]**2
-								#print '(Doublet+Multi) Lensed object at z1 = ', z_s, 'em_line: ', line	
-					if confirmed_lines != []:
-						#fileDM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
-						fileDM.close()
+					if (confirmed_lines != [] and testMode == False):
+						fileDM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
+					fileDM.close()
 		elif (doublet != True and len(peak_candidates) > 1 ):
 			compare = it.combinations(em_lines,len(peak_candidates))
 			confirmed_lines = []
@@ -331,8 +328,8 @@ for j in n.arange(len(plate_mjd)):
 							confirmed_lines.append([group, peak_candidates[k][0]/group[k]-1.0])
 							score+= peak_candidates[j][4]**2+peak_candidates[k][4]**2
 							#print '(Multi Lines) Lensed object at z = ', peak_candidates[k][0]/group[k] -1.0, 'em_lines: ', group[k], group[j]
-			if confirmed_lines != []:
-				#fileM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score, z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
+			if (confirmed_lines != [] and  testMode == False):
+				fileM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score, z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
 				fileM.close()
 		# Save surviving candidates
 		for k in range(len(peak_candidates)):
@@ -361,36 +358,66 @@ for j in n.arange(len(plate_mjd)):
 		#print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number,  "\n",		
 	
 		######################################
-		#TEST MODE VALUES
-		print 'Doublet: ', doublet,'9000: ', below_9000, 'Detection: ', detection
-		detection = True
-		doublet = True
-		below_9000 = True
-		print peak_candidates
+		#TEST MODE
+		#if testMode: 
+			#print 'Doublet: ', doublet,'9000: ', below_9000, 'Detection: ', detection
+			#detection = True
+			#doublet = True
+			#below_9000 = True
+			#print peak_candidates
 		######################################
 		
 
 		#Graphs
 		if ((peak_number>1 or doublet==True) and below_9000 and detection):
-			fig = p.figure()
-			ax = p.subplot(1,1,1)
-			p.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
-			ax.plot(wave, reduced_flux[i,:],'k')
-			p.xlabel('$Wavelength\, (Angstroms)$')
-			p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
-			#Save candidate coordinates and peaks
+			#Computing total fit of all peaks
 			fit=0
 			for k in n.arange(len(peaks)):
 				fit = fit + gauss(wave, x_0 = peaks[k][0] , A=peaks[k][1], var=peaks[k][2])
-			ax.plot(wave,fit,'r')
-			make_sure_path_exists(topdir + '/plots/')
-			# Only plot the doublet in a window
-			#if doublet==True:
-			#	ind = int(((math.log(peak_candidates[doublet_index][0])/math.log(10))-c0)/c1)
-			#	p.ylim([-0.5,reduced_flux[i,ind]+1.0])
-			#	p.xlim([peak_candidates[doublet_index][0]-30,  peak_candidates[doublet_index][0]+30])
-			p.show()
-			#p.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
+			
+			if doublet != True: 
+				ax = plt.subplot(1,1,1)
+				plt.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
+				ax.plot(wave, reduced_flux[i,:],'k')
+				plt.xlabel('$Wavelength\, (Angstroms)$')
+				plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
+				ax.plot(wave,fit,'r')
+				make_sure_path_exists(topdir + '/plots/')
+				if testMode:
+					plt.show()
+				else:
+					plt.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
+	
+			# If doublet, plot in two different windows
+			if doublet==True:
+				x_doublet = 0.5*(peak_candidates[doublet_index][9]+ peak_candidates[doublet_index][10])
+				bounds = n.linspace(int((n.log10(x_doublet)-c0)/c1)-10,int((n.log10(x_doublet)-c0)/c1)+10,21,dtype = n.int16)
+				f = open(topdir + '/doublet_ML.txt','a')
+				f.write('\n' + str(reduced_flux[i,bounds]))
+				f.close()
+				
+				plt.figure(figsize=(14,6))
+				ax1 = plt.subplot2grid((1,3), (0,0), colspan=2)
+				plt.suptitle('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
+				ax2 = plt.subplot2grid((1,3), (0,2))
+				ax1.plot(wave[10:-10], reduced_flux[i,10:-10],'k')
+				ax1.plot(wave,fit,'r')
+				ax1.set_xlabel('$\lambda \, [\AA]$ ')
+				ax1.set_ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
+				ax2.set_xlabel('$\lambda \, [\AA]$ ')
+				#ax2.set_ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
+				ax2.locator_params(tight=True)
+				
+				ax2.set_xlim([peak_candidates[doublet_index][0]-30,  peak_candidates[doublet_index][0]+30])
+				ax2.plot(wave, reduced_flux[i,:],'k')
+				ax2.plot(wave,fit,'r')
+				ax2.set_ylim([-5,10])
+				
+				make_sure_path_exists(topdir + '/plots/')
+				if testMode:
+					plt.show()
+				else:
+					plt.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
 	
 	#print 'Time taken ', (datetime.datetime.now() - startTime)
 

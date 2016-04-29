@@ -1,26 +1,30 @@
 # Removes the fitted template from the spectra
 # Fits the peaks with a Gaussian profile
-# Based on PlotSpec.py
-
-# TO DO
-# Sort objects by # significant peaks
-
+# Determine OII doublet and lensed object redshift
+# Estimate the Eintein radius of the lensing system
 
 # Imports
 import numpy as n
 import pyfits as pf
 import matplotlib as mpl
-from matplotlib import pyplot as p
+mpl.use('Agg')
+from matplotlib import pyplot as plt
 import math
 from scipy.optimize import leastsq
 from scipy.optimize import minimize
+from scipy.integrate import quad
 import datetime
 import copy
 from matplotlib import rcParams
-#rcParams['text.usetex'] = True
 import os
 import errno
 import itertools as it
+#-----------------------------------------------------------------------------------------------------
+# Constants: flat Universe is assumed, OmegaLambda = 0.7, OmegaM = 0.3
+H0 = 72e3 #m s-1 Mpc-1
+c = 2.998e8 #m s-1
+OmegaM = 0.3
+OmegaL = 0.7
 
 #-----------------------------------------------------------------------------------------------------
 # Function definitions
@@ -30,40 +34,42 @@ def gauss(x,x_0,A,var):
 	y = A*n.exp( (-(x-x_0)**2) / (2*var) )
 	return y
 
-# The function whose square is to be minimised.
-# params = list of parameters tuned to minimise function.
-# Further arguments:
-# xdata = xaxis
-# ydata = observed data
-# yerr = variance of y
-def func(params, xdata, ydata, sqrtivar, x0, llimit, ulimit):
-	for i in n.arange(len(llimit)):
-		if ((params[i] < llimit[i]) or (params[i] > ulimit[i])):
-			return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1]))*sqrtivar + 10 
-	return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1]))*sqrtivar
-
-def func2(params, xdata, ydata, sqrtivar, x0, llimit, ulimit):
-	if ( not(10 > abs(params[3]) > 1.3) or  not(ulimit[0]>params[0] > llimit[0]) or not(ulimit[1]>params[1] > llimit[1]) or not(ulimit[0] > params[2] > llimit[0]) ):
-			return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1])-gauss(x=xdata, x_0=x0-params[3], A=params[2], var=params[1]))*sqrtivar + 10 
-	return (ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1])-gauss(x=xdata, x_0=x0-params[3], A=params[2], var=params[1]))*sqrtivar
-
+#Chi square for one gaussian
 def chi2g(params, xdata, ydata, ivar, x0):
-	return sum(ivar*(ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1]))**2)/(len(xdata)-len(params)-1)
-
-
-def chi2(params, xdata, ydata, ivar, x0):
-	return sum(ivar*(ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1])-gauss(x=xdata, x_0=x0-params[3], A=params[2], var=params[1]))**2)/(len(xdata)-len(params) -1)
+	return n.sum(ivar*(ydata - gauss(x=xdata, x_0=x0, A=params[0], var=params[1]))**2)/(len(xdata)-len(params)-1)
+#Chi square for Doublet
+def chi2D(params, xdata, ydata, ivar):
+	return n.sum(ivar*(ydata - gauss(x=xdata, x_0=params[3], A=params[0], var=params[1])-gauss(x=xdata, x_0=params[4], A=params[2], var=params[1]))**2)/(len(xdata)-len(params) -1)
 
 # Check if x0 is near any emission line redshifted by z
 def nearline(x0, zline, fiberid, z, mjd, plate):
-	match1 = n.logical_and(abs(zline['linewave']*(1+zline['linez']) -x0) < 3*zline['lineew'], zline['linearea']!=0)
+	match1 = n.logical_and(abs(zline['linewave']*(1+zline['linez']) -x0) < 10, zline['lineew']/zline['lineew_err'] > 6)
 	match2 = n.logical_and(zline['fiberid']==fiberid,zline['mjd']==int(mjd))
-	match3 = n.logical_and(zline['plate']==int(plate), zline['linearea']/zline['linearea_err'] > 2)
+	match3 = n.logical_and(zline['plate']==int(plate), zline['lineew_err']>0)
 	match4 = n.logical_and(match1,n.logical_and(match2,match3))
 	if (n.sum(match4)>0):
 		return True
 	else:
 		return False
+
+#Gaussian kernel used in first feature search (Bolton et al.,2004 method)	
+def kernel(j,width,NormGauss,length):
+	ker = n.zeros(length)
+	ker[j-int(width*0.5):j+int(width*0.5)] = NormGauss
+	return ker
+	
+# Estimated Einstein Radius from Single Isothermal Sphere (SIE) model
+def radEinstein(z1,z2,vdisp):
+	#compute ang. diam. distances
+	Ds = ((c/H0)*quad(x12,0.0,z2)[0])/(1+z2)
+	Dls = ((c/H0)*quad(x12,z1,z2)[0])/(1+z2)
+	### return value in arcsec
+	coeff = 3600*(180/n.pi)
+	return coeff*4.0*n.pi*vdisp*vdisp*Dls/(c*c*Ds)
+
+#Function needed for numerical computation of angular diameter distance
+def x12(z):
+	return 1.0/n.sqrt((1-OmegaM-OmegaL)*(1+z)*(1+z) + OmegaM*(1+z)**3 + OmegaL)
 
 # Check if a path exists, if not make it
 def make_sure_path_exists(path):
@@ -72,43 +78,35 @@ def make_sure_path_exists(path):
     except OSError as exception:
         if exception.errno != errno.EEXIST:
             raise
-
 #-----------------------------------------------------------------------------------------------------
 # Set topdir:
 topdir = '..'
 
-#print " "*60, "\ropening platelist.fits\r",
-#hdulist = pf.open('/fits_files/plates-dr12.fits')
-#platelist = hdulist[1].data
-#hdulist.close()
-#hdulist = 0
-
 ## import list of plates to analyze
-print " "*20, "importing list of plates",
-#plate_mjd = [line.strip() for line in open('Stripe82.platelist.txt')]
-plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_mjd.txt')]
-
-#for i in n.arange(len(plate_mjd)):
-	#for k in n.arange(len(platelist['plate'])):
-		#if (int(plate_mjd[i]) == platelist['plate'][k]):
-			#plate_mjd[i] = [int(plate_mjd[i]) , platelist['mjd'][k]]
-			#break
+plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/test_list1.txt')]
 
 plate = 0
 fiberid = [0]
 
-f = open(topdir + '/candidates.txt','a')
-f.write('Type RA DEC plate mjd fiber peak_wavelength peak_amp peak_amp_err peak_width peak_width_err  peak_number\n')
+f = open(topdir + '/candidates_doublet.txt','a')
+#f.write('Score z RA DEC plate mjd fiber peak_wavelength \n')
+f.close()
+f = open(topdir + '/candidates_DM.txt','a')
+#f.write('Score z RA DEC plate mjd fiber peak_wavelength \n')
+f.close()
+f = open(topdir + '/candidates_multi.txt','a')
+#f.write('Score RA DEC plate mjd fiber em_lines and z \n')
 f.close()
 
 #Set of emission lines used for lensed galaxy detection OII, Hb, OIII, OIII, Ha
 em_lines = n.array([3726.5,4861.325,4958.911,5006.843,6562.801])
-
+countDoublet = 0
+countDM = 0
+countMulti = 0
 
 #Loop over plates
 for j in n.arange(len(plate_mjd)):
-	#print ' '*60, '\r', "initialization plate " , plate_mjd[j][0], "\r",
-	print "initialization plate " , plate_mjd[j][0], "\n",
+	#print "initialization plate " , plate_mjd[j][0], "\n",
 	
 	# Initialization
 	flux = 0
@@ -134,12 +132,15 @@ for j in n.arange(len(plate_mjd)):
 	hdulist.close()
 	hdulist = 0
 	hdulist = pf.open(zbfile)
+	vdisp = hdulist[1].data.field('VDISP')
+	vdisp_err = hdulist[1].data.field('VDISP_ERR')
 	synflux = hdulist[2].data
 	#zstruc = hdulist[1].data
 	fiberid = hdulist[1].data.field('FIBERID')
 	RA = hdulist[1].data.field('PLUG_RA')
 	DEC = hdulist[1].data.field('PLUG_DEC')
 	obj_class = hdulist[1].data.field('CLASS')
+	obj_type = hdulist[1].data.field('OBJTYPE')
 	z = hdulist[1].data.field('Z')
 	zwarning = hdulist[1].data.field('ZWARNING')
 	z_err = hdulist[1].data.field('Z_ERR')
@@ -151,14 +152,11 @@ for j in n.arange(len(plate_mjd)):
 	hdulist = 0
 	##### PlotSpec ends here 
 	#-----------------------------------------------------------------------------------------------------
-
-	reduced_flux = n.array(flux - synflux)
-	detected = []
-	sqrtivar=copy.deepcopy(ivar)
+	testMode  = False
 	
-	#Upper and lower limit on amplitude and variance of peaks
-	llimit = [0.1, 2]
-	ulimit = [20, 15]
+	
+	reduced_flux = n.array(flux - synflux)
+	sqrtivar=copy.deepcopy(ivar)
 	
 	# Masks atmosphere
 	ivar[:,542:551] = 0 # Hg line
@@ -170,106 +168,101 @@ for j in n.arange(len(plate_mjd)):
 	ivar[:,423:428] = 0 # Ca absorption
 	ivar[:,460:467] = 0 # Ca absorption
 	
-	#Mask 5580 A galaxy spectrums
+	#Mask 5580 A galaxy spectra
 	ivar[:,int((n.log10(5570)-c0)/c1) : int((n.log10(5585)-c0)/c1)] = 0
 	
 	startTime = datetime.datetime.now()
 
 	# Loop over objects
 	for i in n.arange(len(flux[:,0])):
-		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or zwarning[i]!=0):
+		
+		if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
 			continue
+		#if (vdisp[i] < 100 or vdisp_err[i] < 0.0 or zwarning[i]!=0):
+			#print "plate ", plate, " fiber ", fiberid[i], vdisp[i] , vdisp_err[i], zwarning[i]
+			#continue
 		peaks = []
-		peaks_err = []
 		peak_number = len(peaks)
-		searchpeaks = True
 		doublet = None
 		
-		sqrtsaved = n.sqrt(ivar[i,:])
 		sqrtivar[i,:] = n.sqrt(ivar[i,:])
 		
-		# Initial guess
-		init = [3,5]
-		# Initial guess OII doublet
-		init2 = [1,4,1,2.6]
+		### Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks
+		width = 30.0
+		sig = 2.0
+		## Prepare normalized gaussian
+		NormGauss = gauss(n.linspace(-width*0.5,width*0.5,width),0.0,1.0,sig)
+		NormGauss = NormGauss/n.sum(NormGauss)
+		Cj1 = n.array([n.sum(reduced_flux[i,:]*kernel(j+0.5*width,width,NormGauss,len(wave))*ivar[i,:]) for j in range(int(len(wave)-width))])
+		Cj2 = n.array([n.sum(ivar[i,:]*kernel(j+0.5*width,width,NormGauss,len(wave))**2) for j in range(int(len(wave)-width))])
+		SN = n.zeros(len(wave))
+		SN[width*0.5:len(wave)-width*0.5] = Cj1/n.sqrt(Cj2)
 		
-		#peak candidates: a priori search if nearline foreground emission line or not
-		peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,reduced_flux[i,:]* sqrtivar[i,:]) if test>5])
-		# Legend key x0: wavelength chisq_doublet amp_gauss var_gauss err_amp err_var S/N chisq_doublet amp1_doublet amp2_doublet var_doublet err1_doublet err2_doublet err_var_doublet
-		#Keep only center of candidate peak
+		peak_candidates = n.array([(x0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if test>6.0])
+		# Legend key x0: wavelength(x0) chisq_doublet amp_gauss var_gauss S/N chisq_doublet amp1_doublet amp2_doublet var_doublet x1 x2
+		
+		#Keep only center of candidate peaks
 		k = 0
 		while (k < (len(peak_candidates)-1)):
-			if (abs(peak_candidates[k][0] - peak_candidates[k+1][0]) < 5):
-				if peak_candidates[k][6] < peak_candidates[k+1][6]:
+			if (abs(peak_candidates[k][0] - peak_candidates[k+1][0]) < 10):
+				if peak_candidates[k][4] < peak_candidates[k+1][4]:
 					peak_candidates = n.delete(peak_candidates,k, axis=0)
 					k = k-1
 				else:
 					peak_candidates = n.delete(peak_candidates,k+1,axis = 0)
 					k = k-1					
 			k = k+1
-
+		#Search for suitable peak candidates
 		for peak in peak_candidates:
 			x0 = peak[0]
 			if nearline(x0, zline, fiberid[i], z[i], int(mjd), int(plate)):
-				continue
-			cov=0
+ 				continue
 			#Single Line: Gaussian fit around x_0
-			params, cov, infodict, mesg, ier = leastsq(func, init,
-				 args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0, llimit, ulimit),
-				 full_output=True)
-			res =  minimize(chi2g,init,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='TNC', bounds = [(0.2,10),(2,10)])
+			init = [1,2]
+			res =  minimize(chi2g,init,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='SLSQP', bounds = [(0.1,5),(1,8)])
 			params = res.x
 			residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]))**2)*ivar[i,:]
-			chisq =  sum(residue_squared)/(len(wave)-len(params) -1)
-			#Check for S/N > 4 fit
-			if not(cov is None or abs(params[0]/math.sqrt(cov[0,0])) < 4):
+			chisq =  n.sum(residue_squared)/(len(wave)-len(params) -1)
+			chigauss1 = chisq
+			#Check for not to high chi square and save
+			if not(chisq > 2.0):
 				peak[1] = chisq
 				peak[2] = params[0]
 				peak[3] = params[1]
-				peak[4] = cov[0,0]
-				peak[5] = cov[1,1]	
 				
 			#Doublet OII: Gaussian fit around x_0
-			if (x0 > 3727*(1+z[i])):
-				init2= [peak[6],5,peak[6],-3]
-				#params, cov, infodict, mesg, ier = leastsq(func2, init2,
-				#	args=(wave, reduced_flux[i,:], sqrtivar[i,:], x0, llimit, ulimit),
-				#	full_output=True)
-				res = minimize(chi2,init2,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='TNC', bounds = [(0.2,10),(2,10),(0.2,10),(-3,3)])
-				params = res.x
-				residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=x0, A=params[0], var=params[1]) -gauss(x=wave, x_0=x0-params[3], A=params[2], var=params[1]))**2)*ivar[i,:]
-				chisq = sum(residue_squared)/(len(wave)-len(params) -1)
+			if (x0 > 3727.0*(1+z[i])):
+
+				res2 = minimize(chi2D,[1.0,5,1.0,x0-1.5,x0+1.5],args=(wave, reduced_flux[i,:],ivar[i,:]), method='SLSQP', bounds = [(0.1,5),(1,8),(0.1,5),(x0-7,x0),(x0,x0+7)])
+				params2 = res2.x
+				residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=params2[3], A=params2[0], var=params2[1]) - gauss(x=wave, x_0=params2[4], A=params2[2], var=params2[1]))**2)*ivar[i,:]
+				chisq2 = n.sum(residue_squared)/(len(wave)-len(params2) -1)
 				
-				
-			
-				#if (not(cov is None)): #or abs(params[0]/math.sqrt(cov[0,0])) < 4 or abs(params[2]/math.sqrt(cov[2,2])) < 4):
-				if abs(params[3])>1.5:	
-					peak[7] = chisq
-					peak[8] = params[0] #amp1
-					peak[9] = params[1] #var
-					peak[10] = params[2] #amp2
-					peak[11] = params[3] #delta x
-					peak[12] = 1.0 #cov[0,0] #err amp1
-					peak[13] = 1.0#cov[2,2] #err var
-					peak[14] = 1.0#cov[1,1] #err amp2
-						
-		#Finding peak with highest chi square for doublet and see if it is better fitted by single line or not
+				if abs(params2[3]-params2[4])>1.5:	
+					peak[5] = chisq2
+					peak[6] = params2[0] #amp1
+					peak[7] = params2[2] #amp2
+					peak[8] = params2[1] #var
+					peak[9] = params2[3] #x1
+					peak[10] = params2[4] #x2
+									
+		#Finding peak with lowest chi square for doublet and see if it is better fitted by single line or not
 		doublet_index = 0
 		chi2saved = 1000.0
 		# Find the doublet index
 		for k in range(len(peak_candidates)):
 			peak = peak_candidates[k]
-			if (peak[1]>peak[7]>0 and peak[7]< chi2saved):
-				peak[1] = peak[7]
-				chi2saved = peak[7]
+			if (peak[1]>peak[5]>0 and peak[5]< chi2saved):
+				peak[1] = peak[5]
+				chi2saved = peak[5]
 				doublet = True
-				doublet_index = k		
+				doublet_index = k
+		 	
 		
 		#Removing candidates that were not fitted : params still 0
-		peak_candidates = n.array([peak for peak in peak_candidates if (peak[2]!=0 or peak[7]==peak[1]!=0)])
+		peak_candidates = n.array([peak for peak in peak_candidates if (peak[2]!=0 or peak[5]==peak[1]!=0)])
 		if len(peak_candidates) == 0:
 			continue
-		
 		#Sorting candidates by chi square
 		peak_candidates = sorted(peak_candidates, key=lambda peak: peak[1])
 		
@@ -279,7 +272,7 @@ for j in n.arange(len(plate_mjd)):
 		#find again doublet index
 		found = False
 		for k in range(len(peak_candidates)):
-			if (peak_candidates[k][7] == chi2saved):
+			if (peak_candidates[k][5] == chi2saved):
 				doublet_index = k
 				found = True
 		if found==False:
@@ -288,38 +281,56 @@ for j in n.arange(len(plate_mjd)):
 		# Check that at least 1 candidate is below 9000 Angstrom cut, if not, go to next fiber
 		below_9000 = False
 		for peak in peak_candidates:
-			if peak[0] < 9000:
+			if peak[0] < 9500:
 				below_9000 = True
 		if below_9000 ==False:
 			continue
 			
 		#Try to infer background redshift
-		#Generating all combinations of lines from above list to compare with candidates
 		detection = False
-		if (doublet == True and len(peak_candidates)<2):
-			z_background = peak_candidates[doublet_index][0]/3727.24 - 1.0
-			if (z_background > z[i]+0.05):
+		score = 0.0
+		
+		if (doublet == True):
+			fileD = open(topdir + '/candidates_doublet.txt','a')
+			z_s = peak_candidates[doublet_index][0]/3727.24 - 1.0
+			if (z_s > z[i]+0.05):
 				detection = True
-				print '(Doublet) Lensed object at z1 = ', z_background 
-		elif (doublet == True and len(peak_candidates)>1):
-			z_background = peak_candidates[doublet_index][0]/3727.24 - 1.0
-			temp = [peak for peak in peak_candidates if peak[1]!=peak[7]]
-			compare = em_lines[1:5]
-			if z_background > z[i]+0.05 :
-				for peak in temp:
-					for line in compare:
-						if ( abs(peak[0]/line -1 - z_background) < 0.01):
-							detection = True
-							print '(Doublet+Multi) Lensed object at z1 = ', z_background, 'em_line: ', line 				
+				score += peak_candidates[doublet_index][4]**2
+				if testMode == False:
+					fileD.write('\n' +str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],peak_candidates[doublet_index][9]]))
+				fileD.close()
+			if len(peak_candidates):	
+				fileDM = open(topdir + '/candidates_DM.txt','a')
+				confirmed_lines = []
+				#Generating all combinations of lines from above list to compare with candidates
+				temp = [peak for peak in peak_candidates if peak[1]!=peak[5]]
+				compare = em_lines[1:5]
+				if z_s > z[i]+0.05 :
+					for peak in temp:
+						for line in compare:
+							if ( abs(peak[0]/line -1 - z_s) < 0.01):
+								detection = True
+								confirmed_lines.append(line)
+								score+= peak[4]**2
+					if (confirmed_lines != [] and testMode == False):
+						fileDM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
+					fileDM.close()
 		elif (doublet != True and len(peak_candidates) > 1 ):
 			compare = it.combinations(em_lines,len(peak_candidates))
+			confirmed_lines = []
+			fileM = open(topdir + '/candidates_multi.txt','a')
 			for group in compare:
 				for k in range(len(peak_candidates)):
 					for j in range(k+1,len(peak_candidates)):
 						if ( abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and peak_candidates[k][0]/group[k]-1.0 > (z[i] + 0.05) ):
 							detection = True
-							print '(Multi Lines) Lensed object at z = ', peak_candidates[k][0]/group[k] -1.0, 'em_lines: ', group[k], group[j]
-							
+							z_s = peak_candidates[k][0]/group[k]-1.0
+							confirmed_lines.append([group, peak_candidates[k][0]/group[k]-1.0])
+							score+= peak_candidates[j][4]**2+peak_candidates[k][4]**2
+							#print '(Multi Lines) Lensed object at z = ', peak_candidates[k][0]/group[k] -1.0, 'em_lines: ', group[k], group[j]
+			if (confirmed_lines != [] and  testMode == False):
+				fileM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score, z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
+				fileM.close()
 		# Save surviving candidates
 		for k in range(len(peak_candidates)):
 			peak = peak_candidates[k]
@@ -327,74 +338,86 @@ for j in n.arange(len(plate_mjd)):
 			#Redefine variables for clarity
 			chisq_saved = peak[1]
 			params = [peak[2],peak[3]] #amplitude, variance
-			err_amp = peak[4]
-			err_var = peak[5]
 			if (k == doublet_index and doublet ==True):
-				#Specify special variables for one of two peaks
-				params = [peak[8],peak[9]]
-				err_amp = peak[12]
-				err_var = peak[13]
+				#Doublet wavelength saved
+				centerD = int(((math.log(x0_saved)/math.log(10))-c0)/c1)
 				# Save doublet gaussians
-				peaks.append([peak[0], peak[8], peak[9]])
-				peaks_err.append([math.sqrt(peak[12]*chisq_saved), math.sqrt(peak[13]*chisq_saved)])
-				peaks.append([peak[0]-peak[11], peak[10], peak[9]])
-				peaks_err.append([math.sqrt(peak[14]*chisq_saved), math.sqrt(peak[13]*chisq_saved)])
+				peaks.append([peak[9], peak[6], peak[8]])
+				peaks.append([peak[10], peak[7], peak[8]])
 			else:
 				# Save emission line 
 				peaks.append([x0_saved, params[0], params[1]])
-				peaks_err.append([math.sqrt(err_amp*chisq_saved), math.sqrt(err_var*chisq_saved)])
 			# Set ivar = 0 for points around peak/emission line found
-			delta = 2*int((math.log(1 + math.sqrt(params[1])/x0_saved)/math.log(10)) / c1)
+			delta = 2*int((math.log(1 + math.sqrt(params[1])/x0_saved)/math.log(10)) /c1)
 			if (delta == 0):
 				delta=1
 			center = int(((math.log(x0_saved)/math.log(10))-c0)/c1)
 			ivar[i][max(center-delta,0):min(center+delta,len(sqrtivar[i,:])-1)+1] = 0
 		
 		peak_number = len(peak_candidates)
-		print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number,  "\n",		
-			
+		#print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number,  "\n",		
+	
+		######################################
+		#TEST MODE
+		#if testMode: 
+			#print 'Doublet: ', doublet,'9000: ', below_9000, 'Detection: ', detection
+			#detection = True
+			#doublet = True
+			#below_9000 = True
+			#print peak_candidates
+		######################################
+		
+
 		#Graphs
 		if ((peak_number>1 or doublet==True) and below_9000 and detection):
-			#p.subplot(2,1,1)
-			#p.plot(wave, flux[i,:], 'k', hold=False)
-			#p.plot(wave, synflux[i,:], 'g', hold=True)
-			#p.plot(wave, ivar[i,:], 'r', hold=True)
-			p.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+
-				', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+
-				'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
-			#p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
-			
-			ax = p.subplot(1,1,1)
-			#p.plot(wave, reduced_flux[i,:]*sqrtsaved,'k', hold=False)
-			p.plot(wave, reduced_flux[i,:],'k', hold=True)
-			#p.errorbar(wave, reduced_flux[i,:], yerr= 1.0/sqrtivar[i,:])
-			p.xlabel('$Wavelength\, (Angstroms)$')
-			p.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
-			#Save candidate coordinates and peaks
+			#Computing total fit of all peaks
 			fit=0
 			for k in n.arange(len(peaks)):
-				detected.append([RA[i], DEC[i], int(plate), int(mjd), fiberid[i],
-						peaks[k][0], peaks[k][1], math.sqrt(peaks[k][2]), peaks_err[k][0], n.sqrt(peaks_err[k][1]), peak_number])
 				fit = fit + gauss(wave, x_0 = peaks[k][0] , A=peaks[k][1], var=peaks[k][2])
-				#p.annotate(str(int(peaks[k][1]/peaks_err[k][0]))+' sig \n|',
-				#		xy=(peaks[k][0], reduced_flux[i,int(((math.log(peaks[k][0])/math.log(10))-c0)/c1)]),
-				#		xytext=(peaks[k][0], reduced_flux[i,int(((math.log(peaks[k][0])/math.log(10))-c0)/c1)] + 3),
-				#		ha='center', fontsize=10)
-			p.plot(wave,fit,'r',hold=True)
-			ax.set_ylim(ymin = -0.5, ymax = 5)
-			print ' '*60, '\r', "saving figure\r",
-			make_sure_path_exists(topdir + '/plots/')
-			p.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
-			#p.show()
+			
+			if doublet != True: 
+				ax = plt.subplot(1,1,1)
+				plt.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
+				ax.plot(wave, reduced_flux[i,:],'k')
+				plt.xlabel('$Wavelength\, (Angstroms)$')
+				plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
+				ax.plot(wave,fit,'r')
+				make_sure_path_exists(topdir + '/plots/')
+				if testMode:
+					plt.show()
+				else:
+					plt.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
 	
-	print 'Time taken ', (datetime.datetime.now() - startTime)
-	detected = sorted(detected, key = lambda obj : obj[10], reverse = True)
-	f = open(topdir + '/candidates.txt','a')
-	for item in detected:
-		if (doublet == True and len(peak_candidates)<2):
-			f.write('Doublet: ' +  "\n" + str(item))
-		elif (doublet == True and len(peak_candidates)>1):
-			f.write('D + M : ' +  "\n" + str(item))
-		else:
-			f.write('Multi: ' +  "\n" + str(item))
-	f.close()
+			# If doublet, plot in two different windows
+			if doublet==True:
+				x_doublet = 0.5*(peak_candidates[doublet_index][9]+ peak_candidates[doublet_index][10])
+				bounds = n.linspace(int((n.log10(x_doublet)-c0)/c1)-10,int((n.log10(x_doublet)-c0)/c1)+10,21,dtype = n.int16)
+				f = open(topdir + '/doublet_ML.txt','a')
+				f.write('\n' + str(reduced_flux[i,bounds]))
+				f.close()
+				
+				plt.figure(figsize=(14,6))
+				ax1 = plt.subplot2grid((1,3), (0,0), colspan=2)
+				plt.suptitle('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
+				ax2 = plt.subplot2grid((1,3), (0,2))
+				ax1.plot(wave[10:-10], reduced_flux[i,10:-10],'k')
+				ax1.plot(wave,fit,'r')
+				ax1.set_xlabel('$\lambda \, [\AA]$ ')
+				ax1.set_ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
+				ax2.set_xlabel('$\lambda \, [\AA]$ ')
+				#ax2.set_ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
+				ax2.locator_params(tight=True)
+				
+				ax2.set_xlim([peak_candidates[doublet_index][0]-30,  peak_candidates[doublet_index][0]+30])
+				ax2.plot(wave, reduced_flux[i,:],'k')
+				ax2.plot(wave,fit,'r')
+				ax2.set_ylim([-5,10])
+				
+				make_sure_path_exists(topdir + '/plots/')
+				if testMode:
+					plt.show()
+				else:
+					plt.savefig(topdir + '/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
+	
+	#print 'Time taken ', (datetime.datetime.now() - startTime)
+

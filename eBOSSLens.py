@@ -7,13 +7,14 @@
 import numpy as n
 import pyfits as pf
 import matplotlib as mpl
-mpl.use('Agg')
+#mpl.use('Agg')
 from matplotlib import pyplot as plt
 import math
 from scipy.optimize import leastsq
 from scipy.optimize import minimize
 from scipy.integrate import quad
 from scipy import special as sp
+from scipy import interpolate
 import datetime
 import copy
 from matplotlib import rcParams
@@ -29,10 +30,10 @@ testMode  = False
 #-----------------------------------------------------------------------------------------------------
 # Constants: flat Universe is assumed, OmegaLambda = 0.7, OmegaM = 0.3
 H0 = 72e3 #m s-1 Mpc-1
-c = 2.998e8 #m s-1
+c = 299792.458 #m s-1
 OmegaM = 0.3
 OmegaL = 0.7
-
+l_LyA = 1215.668 #Angstroms
 #-----------------------------------------------------------------------------------------------------
 # Function definitions
 
@@ -57,6 +58,7 @@ def chi2skew(params, xdata, ydata, ivar):
 #Reduced Chi square for  double skew profile
 def chi2skew2(params, xdata, ydata, ivar):
 	return n.sum(ivar*(ydata - skew(x=xdata,A = params[0], w=params[1], a=params[2], eps = params[3]) - skew(x=xdata, A = params[4], w = params[5], a=params[6], eps=params[7]))**2)/(len(xdata)-len(params)-1)
+
 
 # Check if x0 is near any emission line redshifted by z
 def nearline(x0, zline, fiberid, z, mjd, plate):
@@ -114,7 +116,24 @@ def resolution(x):
 		return a*x+b
 	else:
 		return 2500
-		
+
+#Prepare the flux in the BOSS bins starting from MC template/any datapoints array
+def template_stretch(template_x, template_y,x0,A,B,eps):
+	template_y = template_y*A
+	m = n.mean(template_x) 
+	template_x = B*(template_x -m) + m + eps
+	
+	sigma = x0/resolution(x0)
+	gaussian_kernel = gauss(template_x,x_0=x0,A=1/n.sqrt(sigma*2*n.pi),var=sigma**2)
+	template_y = n.convolve(template_y, gaussian_kernel,mode='same')
+	return template_x, template_y
+	
+def chi2template(params,xdata,ydata, template_x, template_y, x0, ivar):
+	template_x,template_y = template_stretch(template_x, template_y, x0, params[0],params[1],params[2])
+	nearest_y = [template_y[(n.abs(template_x - w)).argmin()] for w in xdata]
+	return n.sum(ivar*(ydata - nearest_y)**2)/(len(xdata)-len(params)-1)
+
+
 # Check if a path exists, if not make it
 def make_sure_path_exists(path):
     try:
@@ -240,7 +259,6 @@ for j in n.arange(len(plate_mjd)):
 			if (zwarning[i] != 0 or rchi2[i]>3 or z_err[i] < 0):
 				continue
 			# Masking Lya, NV, SiIV, CIV, etc...
-			l_LyA = 1215.668
 			l_NV = 1240
 			l_SiIV= 1400.0
 			l_CIV = 1549.0
@@ -335,18 +353,20 @@ for j in n.arange(len(plate_mjd)):
 			x0 = peak[0]
 			if nearline(x0, zline, fiberid[i], z[i], int(mjd), int(plate)):
 				continue
- 				
+ 			
+ 			bounds = n.linspace(wave2bin(x0,c0,c1,Nmax)-20,wave2bin(x0,c0,c1,Nmax)+20,41,dtype = n.int16)
+
 			#Single Line: Gaussian fit around x_0
 			if searchLyA == True:
-				init = [x0,4,3]
-				res =  minimize(chi2g,init,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='SLSQP', bounds = [(x0-2,x0+2),(1,100),(1,15)])
+				init = [x0,4,6]
+				res =  minimize(chi2g,init,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds],x0), method='SLSQP', bounds = [(x0-2,x0+2),(1,100),(1,15)])
 			elif searchLyA == False:
 				init = [x0,1,2]
-				res =  minimize(chi2g,init,args=(wave, reduced_flux[i,:],ivar[i,:],x0), method='SLSQP', bounds = [(x0-2,x0+2)(0.1,5),(1,8)])
+				res =  minimize(chi2g,init,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds],x0), method='SLSQP', bounds = [(x0-2,x0+2)(0.1,5),(1,8)])
 			params = res.x
-			residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=params[0], A=params[1], var=params[2]))**2)*ivar[i,:]
-			bounds = n.linspace(wave2bin(x0,c0,c1,Nmax)-10,wave2bin(x0,c0,c1,Nmax)+10,21,dtype = n.int16)	
-			chisq =  n.sum(residue_squared[bounds])/(len(bounds)-len(params) -1)
+			chisq = res.fun
+			#residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=params[0], A=params[1], var=params[2]))**2)*ivar[i,:]
+			#chisq =  n.sum(residue_squared[bounds])/(len(bounds)-len(params) -1)
 			chigauss1 = chisq
 			#Check for not too high chi square and save
 			if (not(chisq > 2.0) or searchLyA):
@@ -360,17 +380,16 @@ for j in n.arange(len(plate_mjd)):
 				res2 = minimize(chi2D,[1.0,5,1.0,x0-1.5,x0+1.5],args=(wave, reduced_flux[i,:],ivar[i,:]), method='SLSQP', bounds = [(0.1,5),(1,8),(0.1,5),(x0-7,x0),(x0,x0+7)])
 				params2 = res2.x
 				residue_squared=((reduced_flux[i,:] - gauss(x=wave, x_0=params2[3], A=params2[0], var=params2[1]) - gauss(x=wave, x_0=params2[4], A=params2[2], var=params2[1]))**2)*ivar[i,:]
-				bounds = n.linspace(wave2bin(x0,c0,c1,Nmax)-10,wave2bin(x0,c0,c1,Nmax)+10,21,dtype = n.int16)
 				chisq2 = n.sum(residue_squared[bounds])/(len(bounds)-len(params2) -1)
 				
-				if  0.8*x0/3726.5>abs(params2[3]-params2[4])>1.8*x0/3726.5 and not(chisq2 > 2):	
+				if  0.5*x0/3726.5>abs(params2[3]-params2[4])>2.1*x0/3726.5 and not(chisq2 > 2):	
 					peak[5] = chisq2
 					peak[6] = params2[0] #amp1
 					peak[7] = params2[2] #amp2
 					peak[8] = params2[1] #var
 					peak[9] = params2[3] #x1
 					peak[10] = params2[4] #x2
-					#print 'Valid doublet'
+					print 'Valid doublet'
 					
 					
 					
@@ -384,15 +403,15 @@ for j in n.arange(len(plate_mjd)):
 				res_skew = minimize(chi2skew,init_skew,args=(wave, reduced_flux[i,:],ivar[i,:]), method='SLSQP', bounds = [(2,100),(0.0,10),(1,10),(x0-4,x0+4)])
 				params_skew_a = res_skew.x
 				residue_squared=((reduced_flux[i,:] - skew(x=wave,A = params_skew_a[0], w=params_skew_a[1], a=params_skew_a[2], eps=params_skew_a[3]) )**2)*ivar[i,:]
-				bounds = n.linspace(wave2bin(x0,c0,c1,Nmax)-10,wave2bin(x0,c0,c1,Nmax)+10,21,dtype = n.int16)
+
 				chisq_skew_a = n.sum(residue_squared[bounds])/(len(bounds)-len(params_skew_a) -1)
 				# Double Sharp blue, red tail
-				init_skew = [params[1],0.5,2,x0, params[1]/2,0.5,2,x0+8]
-				res_skew = minimize(chi2skew2,init_skew,args=(wave, reduced_flux[i,:],ivar[i,:]), method='SLSQP', bounds = [(2,100),(0.0,10),(1,10),(x0-4,x0+4), (1,10),(0.0,10),(1,10),(x0+4,x0+10)])
-				params_skew_c = res_skew.x
-				residue_squared=((reduced_flux[i,:] - skew(x=wave,A = params_skew_c[0], w=params_skew_c[1], a=params_skew_c[2], eps=params_skew_c[3]) -  skew(x=wave,A = params_skew_c[4], w=params_skew_c[5], a=params_skew_c[6], eps=params_skew_c[7]))**2)*ivar[i,:]
-				bounds = n.linspace(wave2bin(x0,c0,c1,Nmax)-10,wave2bin(x0,c0,c1,Nmax)+10,21,dtype = n.int16)
-				chisq_skew_c = n.sum(residue_squared[bounds])/(len(bounds)-len(params_skew_c) -1)
+				#init_skew = [params[1],0.5,2,x0, params[1]/2,0.5,2,x0+8]
+				#res_skew = minimize(chi2skew2,init_skew,args=(wave, reduced_flux[i,:],ivar[i,:]), method='SLSQP', bounds = [(2,100),(0.0,10),(1,10),(x0-4,x0+4), (1,10),(0.0,10),(1,10),(x0+4,x0+10)])
+				#params_skew_c = res_skew.x
+				#residue_squared=((reduced_flux[i,:] - skew(x=wave,A = params_skew_c[0], w=params_skew_c[1], a=params_skew_c[2], eps=params_skew_c[3]) -  skew(x=wave,A = params_skew_c[4], w=params_skew_c[5], a=params_skew_c[6], eps=params_skew_c[7]))**2)*ivar[i,:]
+				#bounds = n.linspace(wave2bin(x0,c0,c1,Nmax)-10,wave2bin(x0,c0,c1,Nmax)+10,21,dtype = n.int16)
+				#chisq_skew_c = n.sum(residue_squared[bounds])/(len(bounds)-len(params_skew_c) -1)
 				# Sharp red, blue tail
 				init_skew = [params[1],0.5,-2,x0]
 				res_skew = minimize(chi2skew,init_skew,args=(wave, reduced_flux[i,:],ivar[i,:]), method='SLSQP', bounds = [(2,100),(0.0,10),(1,10),(x0-4,x0+4)])
@@ -401,31 +420,68 @@ for j in n.arange(len(plate_mjd)):
 				chisq_skew_b = n.sum(residue_squared[bounds])/(len(bounds)-len(params_skew_b) -1)
 				
 				LyAdoublet = False
-				if chisq_skew_b < chisq_skew_a and chisq_skew_b < chisq_skew_c:
+				if chisq_skew_b < chisq_skew_a: #and chisq_skew_b < chisq_skew_c:
 					params_skew = params_skew_b
 					chisq_skew = chisq_skew_b
-				elif chisq_skew_a < chisq_skew_b and chisq_skew_a < chisq_skew_c:
+				elif chisq_skew_a < chisq_skew_b: #and chisq_skew_a < chisq_skew_c:
 					params_skew = params_skew_a
 					chisq_skew = chisq_skew_a
-				elif chisq_skew_c < chisq_skew_a and chisq_skew_c < chisq_skew_b:
-					params_skew = params_skew_c
-					chisq_skew = chisq_skew_c
-					LyAdoublet = True
+				#elif chisq_skew_c < chisq_skew_a and chisq_skew_c < chisq_skew_b:
+				#	params_skew = params_skew_c
+				#	chisq_skew = chisq_skew_c
+				#	LyAdoublet = True
 				
-				#ax = plt.subplot(1,1,1)
-				#plt.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
-				#ax.plot(wave, reduced_flux[i,:],'k')
-				#plt.xlabel('$Wavelength\, (Angstroms)$')
-				#plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
-				#ax.plot(wave,gauss(x=wave, x_0=params2[3], A=params2[0], var=params2[1]) + gauss(x=wave, x_0=params2[4], A=params2[2], var=params2[1]),'g', label = r'$\chi_D^2 = $' + '{:.4}'.format(chisq2))
+				# Testing A.Verhamme MCMC LAE profiles
+				
+				template_keys = n.array(['./LAE_TEMPLATE/spec_V0_2N17_B40_D0_E150_F500.dat','./LAE_TEMPLATE/spec_V0_2N18_B40_D0_E150_F500.dat'])
+										#'./LAE_TEMPLATE/spec_V0_2N19_B40_D0_E150_F500.dat','./LAE_TEMPLATE/spec_V0_2N17_B40_D0_E100_F150.dat', 
+										#'./LAE_TEMPLATE/spec_V0_2N18_B40_D0_E100_F150.dat','./LAE_TEMPLATE/spec_V0_2N19_B40_D0_E100_F150.dat', 
+										#'./LAE_TEMPLATE/spec_V0_2N20_B40_D0_E100_F150.dat','./LAE_TEMPLATE/spec_V0_2N21_B40_D0_E100_F150.dat', 
+										#'./LAE_TEMPLATE/spec_V150_2N17_B40_D0_E100_F150.dat','./LAE_TEMPLATE/spec_V150_2N18_B40_D0_E100_F150.dat',
+										#'./LAE_TEMPLATE/spec_V150_2N19_B40_D0_E100_F150.dat','./LAE_TEMPLATE/spec_V150_2N20_B40_D0_E100_F150.dat', 
+										#'./LAE_TEMPLATE/spec_V150_2N21_B40_D0_E100_F150.dat','./LAE_TEMPLATE/spec_V300_2N19_B40_D0_E100_F150.dat',
+										#'./LAE_TEMPLATE/spec_V300_2N20_B40_D0_E100_F150.dat','./LAE_TEMPLATE/spec_V300_7N20_B40_D0_E100_F150.dat'])
+				best_template_key = ''
+				best_template_chisq = 100000000
+				best_template_params = [1,1,0]
+				init = [1,1,0]
+				for key in template_keys:
+					data = n.loadtxt('.'+ key)
+					template_x = data[:,0]
+					template_y = data[:,1]
+					
+					z_LAE = x0/l_LyA-1
+					template_x = (1+z_LAE)*l_LyA*(template_x/c +1 )
+					template_y = 5*template_y/n.max(template_y)
+					
+					res =  minimize(chi2template,init,args=(wave[bounds], reduced_flux[i,bounds], template_x, template_y, x0, ivar[i,bounds]), method='SLSQP', bounds = [(0.,10000),(0.,1000),(-5,+5)])
+					params = res.x
+					chisq_template = res.fun
+					print res.x
+					if chisq_template < best_template_chisq:
+						best_template_chisq = chisq_template
+						best_template_key = key
+						best_template_params = params
+						
+				print chisq, chisq2, chisq_skew, chisq_template		
+				
+				ax = plt.subplot(1,1,1)
+				plt.title('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
+				ax.plot(wave, reduced_flux[i,:],'k')
+				plt.xlabel('$Wavelength\, (Angstroms)$')
+				plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$)')
+				ax.plot(wave,gauss(x=wave, x_0=params2[3], A=params2[0], var=params2[1]) + gauss(x=wave, x_0=params2[4], A=params2[2], var=params2[1]),'g', label = r'$\chi_D^2 = $' + '{:.4}'.format(chisq2))
 				#ax.plot(wave,gauss(x=wave, x_0=params[0], A=params[1], var=params[2]),'r', label = r'$\chi_G^2 = $' + '{:.4}'.format(chisq) )
-				#if LyAdoublet:
-					#ax.plot(wave,skew(x=wave,A = params_skew_c[0], w=params_skew_c[1], a=params_skew_c[2], eps=params_skew_c[3])+ skew(x=wave,A = params_skew_c[4], w=params_skew_c[5], a=params_skew_c[6], eps=params_skew_c[7]), 'c', label = r'$\chi_S^2 = $' + '{:.4}'.format(chisq_skew))
-				#else:
-					#ax.plot(wave,skew(x=wave,A = params_skew[0], w=params_skew[1], a=params_skew[2], eps=params_skew[3]), 'b', label = r'$\chi_S^2 = $' + '{:.4}'.format(chisq_skew))
-				#ax.legend()			
-				#ax.set_xlim(3600,6000)	
-				#plt.show()
+				ax.plot(wave,skew(x=wave,A = params_skew[0], w=params_skew[1], a=params_skew[2], eps=params_skew[3]), 'b', label = r'$\chi_S^2 = $' + '{:.4}'.format(chisq_skew))
+				best_template = n.loadtxt('.'+ best_template_key)
+				data_x = best_template[:,0]
+				data_y = best_template[:,1]
+				plot_x, plot_y = template_stretch(data_x,data_y,x0, best_template_params[0],best_template_params[1],best_template_params[2])
+				print plot_x
+				ax.plot(plot_x,plot_y,'r')
+				ax.legend()			
+				ax.set_xlim(3600,6000)	
+				plt.show()
 		
 		counter2 = counter2 + 1;					
 		#Finding peak with lowest chi square for doublet and see if it is better fitted by single line or not

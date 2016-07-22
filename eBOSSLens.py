@@ -332,7 +332,7 @@ for j in n.arange(len(plate_mjd)):
 		SN[width*0.5:len(wave)-width*0.5] = Cj1/n.sqrt(Cj2)
 		
 		if searchLyA == True and QSOlens:
-			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  l_LyA*z[i]+200<x0)])
+			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  l_LyA*(1+z[i])+200<x0)])
 		elif searchLyA == True and QSOlens == False:
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  3600<x0<4800)])
 		elif searchLyA == False and QSOlens == False:

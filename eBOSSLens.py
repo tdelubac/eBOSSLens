@@ -8,7 +8,7 @@
 import numpy as n
 import pyfits as pf
 import matplotlib as mpl
-mpl.use('Agg')
+#mpl.use('Agg')
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
 from matplotlib.font_manager import FontProperties
@@ -32,7 +32,7 @@ testMode  = False
 #-----------------------------------------------------------------------------------------------------
 # Constants: flat Universe is assumed, OmegaLambda = 0.7, OmegaM = 0.3
 H0 = 72e3 #m s-1 Mpc-1
-c = 299792.458 #m s-1
+c = 299792458 #m s-1
 OmegaM = 0.3
 OmegaL = 0.7
 l_LyA = 1215.668 #Angstroms
@@ -100,7 +100,7 @@ def x12(z):
 	
 #Convert wavelength to bin number
 def wave2bin(x,c0,c1,Nmax):
-	b = int((n.log10(x)-c0)/c1)
+	b = int((n.log10(x)/c1)-c0/c1)
 	if b <= 0:
 		return 0
 	elif b >= Nmax:
@@ -261,7 +261,7 @@ for j in n.arange(len(plate_mjd)):
 			if (not(obj_class[i] == 'QSO   ') or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
 				continue
 			# Reject badly fitted QSOs
-			if (zwarning[i] != 0 or rchi2[i]>3 or z_err[i] < 0):
+			if (zwarning[i] != 0 or rchi2[i]>10 or z_err[i] < 0):
 				continue
 			# Masking Lya, NV, SiIV, CIV, etc...
 			l_NV = 1240
@@ -288,20 +288,20 @@ for j in n.arange(len(plate_mjd)):
 			ivar[i,wave2bin((1+z[i])*(l_NV -0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_NV +0.5*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_SiIV -1.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_SiIV +1.5*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_CIV -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_CIV +2*l_width),c0,c1,Nmax)] = 0 
-			ivar[i,wave2bin((1+z[i])*(l_HeII -0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_HeII +0.5*l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(l_HeII -0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_HeII +1.5*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_CIII -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_CIII +l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_CII -0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_CII +0.5*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_FeII_a -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_FeII_a +l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_FeII_b -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_FeII_b +l_width),c0,c1,Nmax)] = 0
-			ivar[i,wave2bin((1+z[i])*(l_MgII -1.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_MgII +1.5*l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(l_MgII -2.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_MgII +2.5*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_NeV -0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_NeV +0.5*l_width),c0,c1,Nmax)] = 0
-			ivar[i,wave2bin((1+z[i])*(l_OII -0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OII +0.5*l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(l_OII -0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OII +1.5*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_NeIII -0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_NeIII +0.5*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_Hd -0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_Hd +0.5*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1.2+z[i])*(l_Hg - 1.5*l_width),c0,c1,Nmax):wave2bin((1.2+z[i])*(l_Hg + 1.5*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_Hb - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_Hb + l_width),c0,c1,Nmax)] = 0
-			ivar[i,wave2bin((1+z[i])*(l_OIII_a -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OIII_a +l_width),c0,c1,Nmax)] = 0
-			ivar[i,wave2bin((1+z[i])*(l_OIII_b -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OIII_b +l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(l_OIII_a -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OIII_a +2*l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(l_OIII_b -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OIII_b +2*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_Ha -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_Ha +3*l_width),c0,c1,Nmax)] = 0
 		else:
 			if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
@@ -332,9 +332,9 @@ for j in n.arange(len(plate_mjd)):
 		SN[width*0.5:len(wave)-width*0.5] = Cj1/n.sqrt(Cj2)
 		
 		if searchLyA == True and QSOlens:
-			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  l_LyA*(1+z[i])+200<x0)])
+			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  l_LyA*(1+z[i])+200<x0<8000)])
 		elif searchLyA == True and QSOlens == False:
-			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  3600<x0<4800)])
+			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  3600<x0<4800)])
 		elif searchLyA == False and QSOlens == False:
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if test>6.0])
 		else:
@@ -364,8 +364,22 @@ for j in n.arange(len(plate_mjd)):
 			if nearline(x0, zline, fiberid[i], z[i], int(mjd), int(plate)):
 				continue
  			
- 			bounds = n.linspace(wave2bin(x0,c0,c1,Nmax)-15,wave2bin(x0,c0,c1,Nmax)+15,31,dtype = n.int16)
+ 			bounds = n.linspace(wave2bin(x0,c0,c1,Nmax)-15,wave2bin(x0,c0,c1,Nmax)+15,61,dtype = n.int16)
 
+			if QSOlens:
+				x0 = peak[0]
+				window = n.linspace(wave2bin(x0,c0,c1,Nmax)-40,wave2bin(x0,c0,c1,Nmax)+40,81,dtype = n.int16)
+				median_local = n.median(reduced_flux[i,window])
+				fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<5)*n.sqrt(ivar[i,window])) )
+				new_flux = reduced_flux[i,window] - fit_QSO(wave[window])
+				cj1_new = n.sum(new_flux*kernel(int(len(window)/2),width,NormGauss,len(new_flux))*ivar[i,window])
+				cj2_new = n.sum(ivar[i,window]*kernel(int(len(window)/2),width,NormGauss,len(window))**2)
+				SN_fitted = cj1_new/n.sqrt(cj2_new)
+				if SN_fitted < 6:
+					continue
+				else: 
+					peak[19] = SN_fitted 
+					reduced_flux[i,window]=new_flux
 			#Single Line: Gaussian fit around x_0
 			if searchLyA == True:
 				init = [x0,4,6]
@@ -421,18 +435,18 @@ for j in n.arange(len(plate_mjd)):
 			if searchLyA:
 				# Sharp blue, red tail
 				init_skew = [params[1],0.5,2,x0]
-				res_skew = minimize(chi2skew,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,100),(0.0,10),(1,10),(x0-4,x0+4)])
+				res_skew = minimize(chi2skew,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(1,10),(x0-4,x0+4)])
 				params_skew_a = res_skew.x
 				chisq_skew_a = res_skew.fun
 				# Double skew symmetric
 				init_skew = [params[1],0.5,-2,x0, params[1]/2,0.5,2,x0+8]
-				res_skew = minimize(chi2skew2,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,100),(0.0,10),(-10,-1),(x0-4,x0+4), (2,100),(0.0,10),(1,10),(x0-15,x0+15)])
+				res_skew = minimize(chi2skew2,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-4,x0+4), (2,50),(0.0,10),(1,10),(x0-15,x0+15)])
 				params_skew_c = res_skew.x
 				chisq_skew_c = res_skew.fun
 				
 				# Sharp red, blue tail
 				init_skew = [params[1],0.5,-2,x0]
-				res_skew = minimize(chi2skew,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,100),(0.0,10),(-10,-1),(x0-4,x0+4)])
+				res_skew = minimize(chi2skew,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-4,x0+4)])
 				params_skew_b = res_skew.x
 				chisq_skew_b = res_skew.fun
 				
@@ -620,33 +634,33 @@ for j in n.arange(len(plate_mjd)):
 						skewness = peak[13]
 					params = peak[1:6]
 					params_skew = peak[7:15]
-					if params.all() == 0.0 and params_skew.all() == 0:
+					if not(n.any(params) and n.any(params_skew)):
 						continue
 						
-					fileLyA.write('\n' + str([peak[0],peak[6],z[i], SNlines ,RA[i], DEC[i], int(plate), int(mjd), fiberid[i],params[0],params[1],params[2],params[3],params[4],
-									params_skew[0],params_skew[1],params_skew[2],params_skew[3],params_skew[4],params_skew[5],params_skew[6],params_skew[7],peak[15],peak[16],peak[17],peak[18], skewness, S, Sw, eq_Width]))
+					#fileLyA.write('\n' + str([peak[0],peak[6],z[i], SNlines ,RA[i], DEC[i], int(plate), int(mjd), fiberid[i],params[0],params[1],params[2],params[3],params[4],
+					#				params_skew[0],params_skew[1],params_skew[2],params_skew[3],params_skew[4],params_skew[5],params_skew[6],params_skew[7],peak[15],peak[16],peak[17],peak[18], skewness, S, Sw, eq_Width,rchi2[i],,peak[19]]))
 					
 					# Create and save graph
 					fontP = FontProperties()
-					fontP.set_size('medium')
-								
-					plt.suptitle('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+'$, Class='+str(obj_class[i]))
+					fontP.set_size('medium')	
+					plt.suptitle('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+ ',  \chi_f^2 = ' + str(rchi2[i])   +'$, Class='+str(obj_class[i]) )
+					plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}$')
 					#p1 = plt.subplot2grid((2,1), (0,0))
-					gs = gridspec.GridSpec(2,1)
-					p1 = plt.subplot(gs[0,0])
+					gs = gridspec.GridSpec(3,2)
+					p1 = plt.subplot(gs[0,:2])
 					p1.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux')
 					p1.plot(wave, synflux[i,:], 'r', label = 'PCA fit')
 					#p1.plot(wave,ivar[i,:]-15, 'g', label = 'var$^{-1}-15$')
-					plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}$')
-					p1.legend(loc='center right', bbox_to_anchor = (1.2,0.5), ncol = 1, prop=fontP)
+					
+					p1.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1, prop=fontP)
 					box = p1.get_position()
 					p1.set_position([box.x0,box.y0,box.width*0.9,box.height])
 					if QSOlens == False:
 						p1.set_xlim(3600,6000)
 					#gs.update(top=0.2,bottom=0.2)
 					#p2 = plt.subplot2grid((2,1), (1,0))
-					p2 = plt.subplot(gs[1,0])
-					p2.plot(wave, reduced_flux[i,:],'k')
+					p2 = plt.subplot(gs[2,:2])
+					p2.plot(wave, reduced_flux[i,:],'k', label = 'Reduced flux')
 					if 0.0<peak[16]<peak[15]:
 						p2.plot(wave,gauss2(x=wave,x1=params[0],x2=params[1],A1=params[2],A2=params[3],var=params[4]),'g', label = r'$\chi_D^2 = $' + '{:.4}'.format(peak[16]))
 					else:
@@ -657,17 +671,51 @@ for j in n.arange(len(plate_mjd)):
 						p2.plot(wave,skew2(x=wave,A1 = params_skew[0], w1=params_skew[1], a1=params_skew[2], eps1 = params_skew[3], A2 = params_skew[4], w2=params_skew[5], a2=params_skew[6], eps2=params_skew[7]), 'c',label= r'$\chi_{S2}^2 = $' + '{:.4}'.format(peak[18]))
 					box = p2.get_position()
 					p2.set_position([box.x0,box.y0,box.width*0.9,box.height])
-					p2.legend(loc='center right', bbox_to_anchor = (1.2,0.5), ncol = 1,prop=fontP)
-					plt.xlabel('$Wavelength\, [\AA]$')
-					plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2} \AA^{-1}]$')
+					p2.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1,prop=fontP)
+					plt.xlabel('$Wavelength\, [\AA]$',fontsize = 18)
+					#plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2} \AA^{-1}]$')
 					p2.set_xlim(peak[0]-50,peak[0]+60)
 					p2.set_ylim(-2, n.max(reduced_flux[i,bounds])+3)
-					maxAmp = 0
+
+					if QSOlens:
+						p3 = plt.subplot(gs[1,:1])
+						p3.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux')
+						p3.plot(wave, synflux[i,:], 'r', label = 'PCA fit')
+						p3.set_xlim(n.min(wave[window]),n.max(wave[window]))
+						p3.set_ylim(n.min(synflux[i,bounds])-2, n.max(flux[i,bounds])+3)
+						box = p3.get_position()
+						p3.set_position([box.x0,box.y0,box.width*0.8,box.height])
+						plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$', fontsize = 18)
+						p3.legend(loc='upper right', bbox_to_anchor = (1.4,1), ncol = 1,prop=fontP)
+						p3.locator_params(axis='x',nbins=6)
+						x0 = peak[0]
+						window = n.linspace(wave2bin(x0,c0,c1,Nmax)-40,wave2bin(x0,c0,c1,Nmax)+40,81,dtype = n.int16)
+						median_local = n.median(reduced_flux[i,window])
+						fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<5)*n.sqrt(ivar[i,window])) )
+						p4 = plt.subplot(gs[1,1:2])
+						p4.plot(wave[window], fit_QSO(wave[window]), '-m',label = 'Order 3 fit')
+						box = p4.get_position()
+						p4.set_xlim(n.min(wave[window]),n.max(wave[window]))
+						p4.set_position([box.x0,box.y0,box.width*0.8,box.height])
+						p4.plot(wave[window], reduced_flux[i,window],'k', label = 'Flux - PCA')
+						p4.legend(loc='upper right', bbox_to_anchor = (1.4,1), ncol = 1,prop=fontP)
+						p4.locator_params(axis='x',nbins=6)
+					else: 
+						p3 = plt.subplot(gs[1,:2])
+						p3.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux')
+						p3.plot(wave, synflux[i,:], 'r', label = 'PCA fit')
+						p3.legend(prop=fontP)
+						p3.set_xlim(peak[0]-50,peak[0]+60)
+						p3.set_ylim(n.min(synflux[i,bounds])-2, n.max(flux[i,bounds])+3)
+						plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$', fontsize=18)
+						
+
+					
 		 			make_sure_path_exists(topdir + savedir +'/plots/')
-					if testMode:
-						plt.show()
-					else:
-						plt.savefig(topdir + savedir +'/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-' + str(n_peak)+ '.png')
+					#if testMode:
+					plt.show()
+					#else:
+					#	plt.savefig(topdir + savedir +'/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-' + str(n_peak)+ '.png')
 					plt.close()
 					n_peak = n_peak +1
 			fileLyA.close()

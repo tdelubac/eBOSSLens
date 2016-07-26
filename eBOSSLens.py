@@ -1,14 +1,14 @@
 # Romain A. Meyer, 2016, LASTRO, EPFL
-# Spectroscopic lensing detection automated Tool 
+# Spectroscopic lensing systems detection tool 
 # Detects OII doublet for galaxy-galaxy lensing systems
-# Search for Lyman alpha emission for galaxy-LAE or QSO-LAE systems
-# Operation mode is switched using booleans below (lines 27-29)
+# Searches for Lyman alpha emission for galaxy-LAE or QSO-LAE systems
+# Switch between the cases using booleans below (lines 29-31)
 
 # Imports
 import numpy as n
 import pyfits as pf
 import matplotlib as mpl
-#mpl.use('Agg')
+mpl.use('Agg')
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
 from matplotlib.font_manager import FontProperties
@@ -144,7 +144,7 @@ def template_stretch(template_x, template_y, xdata, x0,A,B,eps):
 	interpol = interpolate.interp1d(template_x,template_y, kind ='linear')
 	
 	return interpol(xdata)
-
+# Compute the chi2 any template template
 def chi2template(params,xdata,ydata, template_x, template_y, x0, ivar):
 	y_fit = template_stretch(template_x, template_y, xdata, x0, params[0],params[1],params[2])
 	return n.sum(ivar*(ydata - y_fit)**2)/(len(xdata)-len(params)-1)
@@ -159,9 +159,9 @@ def make_sure_path_exists(path):
 #-----------------------------------------------------------------------------------------------------
 #Set topdir,savedir:
 topdir = '..'
-savedir = '/testQSO'
-## import list of plates to analyze
-plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/plates_W.txt')]
+savedir = '/QSO-LAE/S82'
+## import list of plates to investigate
+plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/plates_S82.txt')]
 
 plate = 0
 fiberid = [0]
@@ -179,12 +179,12 @@ elif searchLyA == False:
 	f = open(topdir + savedir + '/candidates_multi.txt','a')
 	f.close()
 
-#Set of emission lines used for lensed galaxy detection OII, Hb, OIII, OIII, Ha
+#Set of emission lines used for lensed galaxy detection: OII, Hb, OIII, OIII, Ha
 em_lines = n.array([3726.5,4861.325,4958.911,5006.843,6562.801])
 countDoublet = 0
 countDM = 0
 countMulti = 0
-
+# Counters used to check the numbers of candidates at key step
 counter1 = 0
 counter2 = 0
 counter3 = 0
@@ -192,12 +192,10 @@ counter4 = 0
 
 #Loop over plates
 for j in n.arange(len(plate_mjd)):
-	# Initialization
+	# Loading the data --------------------------------------------------------------------------------
 	flux = 0
 	plate = plate_mjd[j][0]
 	mjd = plate_mjd[j][1]
-	
-	# Pick the plate/mjd and read the data:
 	plate = plate_mjd[j][0]
 	spfile = topdir + '/fits_files/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
 	zbfile = topdir + '/fits_files/spZbest-' + str(plate) + '-' + str(mjd) + '.fits'
@@ -220,6 +218,7 @@ for j in n.arange(len(plate_mjd)):
 	fiberid = hdulist[1].data.field('FIBERID')
 	RA = hdulist[1].data.field('PLUG_RA')
 	DEC = hdulist[1].data.field('PLUG_DEC')
+	obj_id = hdulist[1].data.field('OBJID')
 	obj_class = hdulist[1].data.field('CLASS')
 	obj_type = hdulist[1].data.field('OBJTYPE')
 	z = hdulist[1].data.field('Z')
@@ -237,16 +236,6 @@ for j in n.arange(len(plate_mjd)):
 	sqrtivar=copy.deepcopy(ivar)
 	
 	Nmax = len(flux[0,:])
-	
-	# Masks atmosphere
-	#ivar[:,542:551] = 0 # Hg line
-	#ivar[:,868:873] = 0 # Hg line
-	#ivar[:,1847:1852] = 0 # Hg line
-	#ivar[:,1938:1944] = 0 # OI line
-	#ivar[:,2022:2031] = 0 # lines
-	#ivar[:,2175:2185] = 0 # lines
-	#ivar[:,423:428] = 0 # Ca absorption
-	#ivar[:,460:467] = 0 # Ca absorption
 	
 	#Mask BOSS spectra glitches
 	ivar[:,wave2bin(5570,c0,c1,Nmax): wave2bin(5590,c0,c1,Nmax)] = 0
@@ -282,7 +271,7 @@ for j in n.arange(len(plate_mjd)):
 			l_OIII_a = 4959
 			l_OIII_b = 5007
 			l_Ha = 6562.81
-			l_width = 20
+			l_width = 25
 			#Mask the above emission lines of QSO's
 			ivar[i,wave2bin((1+z[i])*(l_LyA -2.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_LyA +2.5*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_NV -0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_NV +0.5*l_width),c0,c1,Nmax)] = 0
@@ -493,7 +482,7 @@ for j in n.arange(len(plate_mjd)):
 				
 				peak_index = local_flux.argmax()
 				F = 0.1*local_flux[peak_index]
-				#Find blue and right 10% peak flux
+				#Find blue and red 10% peak flux
 				f = 10*F
 				k = peak_index
 				while f > F and 0<k:
@@ -518,7 +507,10 @@ for j in n.arange(len(plate_mjd)):
 								'./LAE_TEMPLATE/spec_V50_2N19_B40_D0_E150_F500.dat', './LAE_TEMPLATE/spec_V50_2N19_B40_D0_E100_F150.dat',
 								'./LAE_TEMPLATE/spec_V50_2N20_B40_D0_E150_F500.dat', './LAE_TEMPLATE/spec_V50_2N20_B40_D0_E100_F150.dat',
 								'./LAE_TEMPLATE/spec_V50_2N21_B40_D0_E150_F500.dat', './LAE_TEMPLATE/spec_V50_2N21_B40_D0_E100_F150.dat',])
-
+				
+				#put back reduced flux by adding again 3rd order fit (plotting purpose)
+				reduced_flux[i,window]= new_flux + fit_QSO(wave[window])
+				
 		counter2 = counter2 + 1;					
 
 		if searchLyA == False:
@@ -637,15 +629,14 @@ for j in n.arange(len(plate_mjd)):
 					if not(n.any(params) and n.any(params_skew)):
 						continue
 						
-					#fileLyA.write('\n' + str([peak[0],peak[6],z[i], SNlines ,RA[i], DEC[i], int(plate), int(mjd), fiberid[i],params[0],params[1],params[2],params[3],params[4],
-					#				params_skew[0],params_skew[1],params_skew[2],params_skew[3],params_skew[4],params_skew[5],params_skew[6],params_skew[7],peak[15],peak[16],peak[17],peak[18], skewness, S, Sw, eq_Width,rchi2[i],,peak[19]]))
+					fileLyA.write('\n' + str([peak[0],peak[6],z[i], SNlines ,RA[i], DEC[i], int(plate), int(mjd), fiberid[i],params[0],params[1],params[2],params[3],params[4],
+									params_skew[0],params_skew[1],params_skew[2],params_skew[3],params_skew[4],params_skew[5],params_skew[6],params_skew[7],peak[15],peak[16],peak[17],peak[18], skewness, S, Sw, eq_Width,rchi2[i],peak[19]]))
 					
 					# Create and save graph
 					fontP = FontProperties()
 					fontP.set_size('medium')	
 					plt.suptitle('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+ ',  \chi_f^2 = ' + str(rchi2[i])   +'$, Class='+str(obj_class[i]) )
 					plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}$')
-					#p1 = plt.subplot2grid((2,1), (0,0))
 					gs = gridspec.GridSpec(3,2)
 					p1 = plt.subplot(gs[0,:2])
 					p1.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux')
@@ -657,39 +648,22 @@ for j in n.arange(len(plate_mjd)):
 					p1.set_position([box.x0,box.y0,box.width*0.9,box.height])
 					if QSOlens == False:
 						p1.set_xlim(3600,6000)
-					#gs.update(top=0.2,bottom=0.2)
-					#p2 = plt.subplot2grid((2,1), (1,0))
-					p2 = plt.subplot(gs[2,:2])
-					p2.plot(wave, reduced_flux[i,:],'k', label = 'Reduced flux')
-					if 0.0<peak[16]<peak[15]:
-						p2.plot(wave,gauss2(x=wave,x1=params[0],x2=params[1],A1=params[2],A2=params[3],var=params[4]),'g', label = r'$\chi_D^2 = $' + '{:.4}'.format(peak[16]))
-					else:
-						p2.plot(wave,gauss(x=wave, x_0=params[0], A=params[1], var=params[2]),'r', label = r'$\chi_G^2 = $' + '{:.4}'.format(peak[15]) )
-					if 0.0<peak[17]<peak[18]:
-						p2.plot(wave,skew(x=wave,A = params_skew[0], w=params_skew[1], a=params_skew[2], eps=params_skew[3]), 'b', label =r'$\chi_S^2 = $' + '{:.4}'.format(peak[17]))
-					else:
-						p2.plot(wave,skew2(x=wave,A1 = params_skew[0], w1=params_skew[1], a1=params_skew[2], eps1 = params_skew[3], A2 = params_skew[4], w2=params_skew[5], a2=params_skew[6], eps2=params_skew[7]), 'c',label= r'$\chi_{S2}^2 = $' + '{:.4}'.format(peak[18]))
-					box = p2.get_position()
-					p2.set_position([box.x0,box.y0,box.width*0.9,box.height])
-					p2.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1,prop=fontP)
-					plt.xlabel('$Wavelength\, [\AA]$',fontsize = 18)
-					#plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2} \AA^{-1}]$')
-					p2.set_xlim(peak[0]-50,peak[0]+60)
-					p2.set_ylim(-2, n.max(reduced_flux[i,bounds])+3)
-
+					
+					x0 = peak[0]
+					window = n.linspace(wave2bin(x0,c0,c1,Nmax)-40,wave2bin(x0,c0,c1,Nmax)+40,81,dtype = n.int16)	
 					if QSOlens:
 						p3 = plt.subplot(gs[1,:1])
 						p3.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux')
 						p3.plot(wave, synflux[i,:], 'r', label = 'PCA fit')
 						p3.set_xlim(n.min(wave[window]),n.max(wave[window]))
-						p3.set_ylim(n.min(synflux[i,bounds])-2, n.max(flux[i,bounds])+3)
+						p3.set_ylim(n.min(synflux[i,bounds])-1, n.max(flux[i,bounds])+1)
 						box = p3.get_position()
 						p3.set_position([box.x0,box.y0,box.width*0.8,box.height])
 						plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$', fontsize = 18)
 						p3.legend(loc='upper right', bbox_to_anchor = (1.4,1), ncol = 1,prop=fontP)
 						p3.locator_params(axis='x',nbins=6)
-						x0 = peak[0]
-						window = n.linspace(wave2bin(x0,c0,c1,Nmax)-40,wave2bin(x0,c0,c1,Nmax)+40,81,dtype = n.int16)
+						
+						
 						median_local = n.median(reduced_flux[i,window])
 						fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<5)*n.sqrt(ivar[i,window])) )
 						p4 = plt.subplot(gs[1,1:2])
@@ -707,20 +681,36 @@ for j in n.arange(len(plate_mjd)):
 						p3.legend(prop=fontP)
 						p3.set_xlim(peak[0]-50,peak[0]+60)
 						p3.set_ylim(n.min(synflux[i,bounds])-2, n.max(flux[i,bounds])+3)
-						plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$', fontsize=18)
+						plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$', fontsize=18)	
 						
+						
+					p2 = plt.subplot(gs[2,:2])
+					p2.plot(wave[window], reduced_flux[i,window]-fit_QSO(wave[window]),'k', label = 'Reduced flux')
+					if 0.0<peak[16]<peak[15]:
+						p2.plot(wave,gauss2(x=wave,x1=params[0],x2=params[1],A1=params[2],A2=params[3],var=params[4]),'g', label = r'$\chi_D^2 = $' + '{:.4}'.format(peak[16]))
+					else:
+						p2.plot(wave,gauss(x=wave, x_0=params[0], A=params[1], var=params[2]),'r', label = r'$\chi_G^2 = $' + '{:.4}'.format(peak[15]) )
+					if 0.0<peak[17]<peak[18]:
+						p2.plot(wave,skew(x=wave,A = params_skew[0], w=params_skew[1], a=params_skew[2], eps=params_skew[3]), 'b', label =r'$\chi_S^2 = $' + '{:.4}'.format(peak[17]))
+					else:
+						p2.plot(wave,skew2(x=wave,A1 = params_skew[0], w1=params_skew[1], a1=params_skew[2], eps1 = params_skew[3], A2 = params_skew[4], w2=params_skew[5], a2=params_skew[6], eps2=params_skew[7]), 'c',label= r'$\chi_{S2}^2 = $' + '{:.4}'.format(peak[18]))
+					box = p2.get_position()
+					p2.set_position([box.x0,box.y0,box.width*0.9,box.height])
+					p2.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1,prop=fontP)
+					plt.xlabel('$Wavelength\, [\AA]$',fontsize = 18)
+					p2.set_xlim(n.min(wave[window]),n.max(wave[window]))
+					p2.set_ylim(-1, n.max(reduced_flux[i,bounds])+1)
 
-					
 		 			make_sure_path_exists(topdir + savedir +'/plots/')
-					#if testMode:
-					plt.show()
-					#else:
-					#	plt.savefig(topdir + savedir +'/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-' + str(n_peak)+ '.png')
+					if testMode:
+						plt.show()
+					else:
+						plt.savefig(topdir + savedir +'/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-' + str(n_peak)+ '.png')
 					plt.close()
 					n_peak = n_peak +1
 			fileLyA.close()
 
-		# Save surviving candidates
+		# Save surviving candidates (Galaxy-Galaxy case)
 		if searchLyA == False:
 			for k in range(len(peak_candidates)):
 				peak = peak_candidates[k]

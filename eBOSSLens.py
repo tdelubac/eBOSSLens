@@ -149,6 +149,24 @@ def chi2template(params,xdata,ydata, template_x, template_y, x0, ivar):
 	y_fit = template_stretch(template_x, template_y, xdata, x0, params[0],params[1],params[2])
 	return n.sum(ivar*(ydata - y_fit)**2)/(len(xdata)-len(params)-1)
 
+#Transform RA DEC to SDSS name
+def SDSSname(RA,DEC):
+	sign = n.sign(DEC)
+	DEC = n.abs(DEC)
+	HH = int(RA//15)
+	MM = int((RA-HH*15.)*60./15.)
+	SS = (RA-HH*15.-MM*15./60.)*3600./15
+	DD = int(DEC)
+	MM_dec = int((DEC-DD)*60.)
+	SS_dec = (DEC - DD - MM_dec/60.)*3600
+
+	if sign < 0:
+		return'SDSS J'+'{:02}'.format(HH)+'{:02}'.format(MM)+'{:05.2f}'.format(SS)+'-'+'{:02}'.format(DD)+'{:02}'.format(MM_dec)+'{:04.1f}'.format(SS_dec)
+	else:
+		return 'SDSS J'+'{:02}'.format(HH)+'{:02}'.format(MM)+'{:05.2f}'.format(SS)+'+'+'{:02}'.format(DD)+'{:02}'.format(MM_dec)+'{:04.1f}'.format(SS_dec)
+
+
+
 # Check if a path exists, if not make it
 def make_sure_path_exists(path):
     try:
@@ -159,9 +177,9 @@ def make_sure_path_exists(path):
 #-----------------------------------------------------------------------------------------------------
 #Set topdir,savedir:
 topdir = '..'
-savedir = '/QSO-LAE/S82'
+savedir = '/QSO-LAE/CFHTW'
 ## import list of plates to investigate
-plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/plates_S82.txt')]
+plate_mjd = [line.strip().split() for line in open(topdir + '/fits_files/plates_W.txt')]
 
 plate = 0
 fiberid = [0]
@@ -359,7 +377,7 @@ for j in n.arange(len(plate_mjd)):
 				x0 = peak[0]
 				window = n.linspace(wave2bin(x0,c0,c1,Nmax)-40,wave2bin(x0,c0,c1,Nmax)+40,81,dtype = n.int16)
 				median_local = n.median(reduced_flux[i,window])
-				fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<5)*n.sqrt(ivar[i,window])) )
+				fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<3)*n.sqrt(ivar[i,window])) )
 				new_flux = reduced_flux[i,window] - fit_QSO(wave[window])
 				cj1_new = n.sum(new_flux*kernel(int(len(window)/2),width,NormGauss,len(new_flux))*ivar[i,window])
 				cj2_new = n.sum(ivar[i,window]*kernel(int(len(window)/2),width,NormGauss,len(window))**2)
@@ -630,12 +648,14 @@ for j in n.arange(len(plate_mjd)):
 						continue
 						
 					fileLyA.write('\n' + str([peak[0],peak[6],z[i], SNlines ,RA[i], DEC[i], int(plate), int(mjd), fiberid[i],params[0],params[1],params[2],params[3],params[4],
-									params_skew[0],params_skew[1],params_skew[2],params_skew[3],params_skew[4],params_skew[5],params_skew[6],params_skew[7],peak[15],peak[16],peak[17],peak[18], skewness, S, Sw, eq_Width,rchi2[i],peak[19]]))
+									params_skew[0],params_skew[1],params_skew[2],params_skew[3],params_skew[4],params_skew[5],params_skew[6],params_skew[7],peak[15],peak[16],peak[17],peak[18], skewness, S, Sw, eq_Width,rchi2[i],peak[19],SDSSname(RA[i],DEC[i])]))
 					
 					# Create and save graph
 					fontP = FontProperties()
 					fontP.set_size('medium')	
-					plt.suptitle('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+ ',  \chi_f^2 = ' + str(rchi2[i])   +'$, Class='+str(obj_class[i]) )
+					#plt.suptitle('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+ ',  \chi_f^2 = ' + str(rchi2[i])   +'$, Class='+str(obj_class[i]) )
+					plt.suptitle(SDSSname(RA[i],DEC[i])+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+ ', \,\,\, '+'\chi_f^2 = $' + str(rchi2[i]) )
+				
 					plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}$')
 					gs = gridspec.GridSpec(3,2)
 					p1 = plt.subplot(gs[0,:2])
@@ -646,6 +666,7 @@ for j in n.arange(len(plate_mjd)):
 					p1.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1, prop=fontP)
 					box = p1.get_position()
 					p1.set_position([box.x0,box.y0,box.width*0.9,box.height])
+					p1.set_ylim(n.min(synflux[i,:])-3, n.max(synflux[i,:])+3)
 					if QSOlens == False:
 						p1.set_xlim(3600,6000)
 					
@@ -656,7 +677,7 @@ for j in n.arange(len(plate_mjd)):
 						p3.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux')
 						p3.plot(wave, synflux[i,:], 'r', label = 'PCA fit')
 						p3.set_xlim(n.min(wave[window]),n.max(wave[window]))
-						p3.set_ylim(n.min(synflux[i,bounds])-1, n.max(flux[i,bounds])+1)
+						p3.set_ylim(n.min(synflux[i,window])-1, n.max(flux[i,window])+1)
 						box = p3.get_position()
 						p3.set_position([box.x0,box.y0,box.width*0.8,box.height])
 						plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$', fontsize = 18)
@@ -665,7 +686,7 @@ for j in n.arange(len(plate_mjd)):
 						
 						
 						median_local = n.median(reduced_flux[i,window])
-						fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<5)*n.sqrt(ivar[i,window])) )
+						fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<3)*n.sqrt(ivar[i,window])) )
 						p4 = plt.subplot(gs[1,1:2])
 						p4.plot(wave[window], fit_QSO(wave[window]), '-m',label = 'Order 3 fit')
 						box = p4.get_position()
@@ -699,13 +720,13 @@ for j in n.arange(len(plate_mjd)):
 					p2.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1,prop=fontP)
 					plt.xlabel('$Wavelength\, [\AA]$',fontsize = 18)
 					p2.set_xlim(n.min(wave[window]),n.max(wave[window]))
-					p2.set_ylim(-1, n.max(reduced_flux[i,bounds])+1)
+					p2.set_ylim(-1, n.max(reduced_flux[i,window]-fit_QSO(wave[window])+1))
 
 		 			make_sure_path_exists(topdir + savedir +'/plots/')
 					if testMode:
 						plt.show()
 					else:
-						plt.savefig(topdir + savedir +'/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-' + str(n_peak)+ '.png')
+						plt.savefig(topdir + savedir +'/plots/'+SDSSname(RA[i],DEC[i])+ '-' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-' + str(n_peak)+ '.png')
 					plt.close()
 					n_peak = n_peak +1
 			fileLyA.close()

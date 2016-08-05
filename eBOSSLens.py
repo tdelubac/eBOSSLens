@@ -176,11 +176,9 @@ def make_sure_path_exists(path):
 #-----------------------------------------------------------------------------------------------------
 #Set topdir,savedir:
 topdir = '..'
-savedir = '/QSO-LAE/BOSS/5703-6144'
+savedir = '/QSO-LAE/BOSS/6145-6449'
 ## import list of plates to investigate
-plate_mjd = [line.strip().split() for line in open(topdir + savedir + '/plates_5703-6144.txt')]
-
-
+plate_mjd = [line.strip().split() for line in open(topdir + savedir + '/plates_6145-6449.txt')]
 
 plate = 0
 fiberid = [0]
@@ -218,6 +216,8 @@ fiber_DR12Q = hdulist[1].data.field('FIBERID')
 
 DR12Q = n.transpose(n.vstack((plate_DR12Q,mjd_DR12Q,fiber_DR12Q,z_PCA_DR12Q,z_vi_DR12Q)))
 
+candidates = n.loadtxt('platemjdfiber_list.txt')
+
 
 #Loop over plates
 for j in n.arange(len(plate_mjd)):
@@ -231,6 +231,9 @@ for j in n.arange(len(plate_mjd)):
 	spfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
 	zbfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/' + str(plate) + '/v5_7_0/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
 	zlfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/' + str(plate) + '/v5_7_0/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'
+	#spfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
+	#zbfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/' + str(plate) + '/v5_10_0/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
+	#zlfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/' + str(plate) + '/v5_10_0/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'
 	hdulist = pf.open(spfile)
 	c0 = hdulist[0].header['coeff0']
 	c1 = hdulist[0].header['coeff1']
@@ -268,27 +271,32 @@ for j in n.arange(len(plate_mjd)):
 	sqrtivar=copy.deepcopy(ivar)
 	
 	Nmax = len(flux[0,:])
-	
+
 	#Mask BOSS spectra glitches
 	ivar[:,wave2bin(5570,c0,c1,Nmax): wave2bin(5590,c0,c1,Nmax)] = 0
 	ivar[:,wave2bin(5880,c0,c1,Nmax): wave2bin(5905,c0,c1,Nmax)] = 0
-
 	# Loop over fibers
 	for i in  n.arange(len(flux[:,0])):
-	#Shu candidates
-	#for i in n.array([810,34,702,721,148,40,638,754,340,696,854,614,540,302,473,180,966,314,800,644,546,124,874,32,450]):
+	#Using above file, allow to look only at certain plate-mjd-fiber 
+		candidates_list = [x for x in candidates if (int(x[0])==int(plate) and int(x[1])==int(mjd) and  int(x[2])== int(fiberid[i]))]
+		if len(candidates_list) == 0:
+			continue
 		if QSOlens:
+			redshift_warning = False
 			# Take only QSOs
 			if (not(obj_class[i] == 'QSO   ') or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
 				continue
 			# Reject badly fitted QSOs
 			if (zwarning[i] != 0 or rchi2[i]>10 or z_err[i] < 0):
 				continue	
-			index = [x for x in DR12Q if (x[0]==plate and x[1]==mjd and x[2]==fiberid[i])]
+			index = [x for x in DR12Q if (int(x[0])==int(plate) and int(x[1])==int(mjd) and int(x[2])==int(fiberid[i]))]
+			
 			if len(index)>0:
-				if n.abs(index[3]-z[i])<0.001 and n.abs(index[4]-z[i])>0.1:
-					continue
-
+				if n.abs(index[0][3]-z[i])<0.005 and n.abs(index[0][4]-z[i])>0.1:
+					redshift_warning = True
+			else:
+				redshift_warning = True
+			
 			# Masking Lya, NV, SiIV, CIV, etc...
 			l_NV = 1240
 			l_SiIV= 1400.0
@@ -329,6 +337,19 @@ for j in n.arange(len(plate_mjd)):
 			ivar[i,wave2bin((1+z[i])*(l_OIII_a -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OIII_a +2*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_OIII_b -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OIII_b +2*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_Ha -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_Ha +3*l_width),c0,c1,Nmax)] = 0
+			# additional Lines added after 1st results
+			ivar[i,wave2bin((1+z[i])*(2427 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(2427 +l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(3350 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(3350 + l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(4490 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(4490 + l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(5080 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(5080 +l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(5200 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(5200 +l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(5317 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(5317 +l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(5691 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(5691 +l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(6376 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6376 + l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(6504 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6504 + l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(6307 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6307 +l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(6734 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6734 + l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(6716 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6716 + l_width),c0,c1,Nmax)] = 0
 		else:
 			if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
 				continue
@@ -358,7 +379,7 @@ for j in n.arange(len(plate_mjd)):
 		SN[width*0.5:len(wave)-width*0.5] = Cj1/n.sqrt(Cj2)
 		
 		if searchLyA == True and QSOlens:
-			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  l_LyA*(1+z[i])+200<x0<8000)])
+			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  (l_LyA*(1+z[i])+300)<x0<8000)])
 		elif searchLyA == True and QSOlens == False:
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  3600<x0<4800)])
 		elif searchLyA == False and QSOlens == False:
@@ -394,6 +415,19 @@ for j in n.arange(len(plate_mjd)):
 		
 		eq_Width = 0
 		chi2_width = 100000
+		
+		#### check hits are not from foreground galaxy or badly fitted QSO
+		if QSOlens:
+			foreground_z = False
+			compare = it.combinations(em_lines,len(peak_candidates))
+			for group in compare:
+				for k in range(len(peak_candidates)):
+					for j in range(k+1,len(peak_candidates)):
+						if ( n.abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and 0.0<peak_candidates[k][0]/group[k]-1.0 < (z[i] - 0.05) ):
+							foreground_z = True
+			if foreground_z:
+				continue
+		
 		#Search for suitable peak candidates
 		for peak in peak_candidates:
 			x0 = peak[0]

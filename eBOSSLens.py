@@ -1,9 +1,10 @@
-# Romain A. Meyer, 2016, LASTRO, EPFL
+  # Romain A. Meyer, 2016, LASTRO, EPFL
 # Spectroscopic lensing systems detection tool 
 # Detects OII doublet for galaxy-galaxy lensing systems
 # Searches for Lyman alpha emission for galaxy-LAE or QSO-LAE systems
 # Switch between the cases using booleans below (lines 30-32)
-# To change list of plate to analyse: line 181
+# 'Paper' mode removes intermediate steps plots useful for analysis but irrelevant for publication
+# To change list of plate to analyse: line 34
 
 # Imports
 import numpy as n
@@ -29,16 +30,26 @@ import itertools as it
 # Operation mode
 searchLyA = True
 QSOlens = True
-testMode  = False
+paper = True
+#----------------- give file in [plate mjd fiber] format of objects you want to inspect -----------------
+candidates = n.loadtxt('../QSO-LAE/BOSS/paper_selec/final_selec.txt')
 #-----------------------------------------------------------------------------------------------------
 # Constants: flat Universe is assumed, OmegaLambda = 0.7, OmegaM = 0.3
 H0 = 72e3 #m s-1 Mpc-1
 c = 299792458 #m s-1
-OmegaM = 0.3
-OmegaL = 0.7
+OmegaM = 0.258
+OmegaL = 0.742
 l_LyA = 1215.668 #Angstroms
+parsec = 3.0857e16 #m
 #-----------------------------------------------------------------------------------------------------
 # Function definitions
+
+# Lorentzian 
+def lorentz(x,x_0,g,A):
+	return A*(g/n.pi)/((x-x_0)**2 + g**2)
+# chi2 Lorentzian
+def chi2Lorenz(params,xdata,ydata,ivar):
+	return n.sum(ivar*(ydata - lorentz(x=xdata, x_0=params[0], g=params[1], A=params[2]))**2)/(len(xdata)-len(params)-1)
 
 # Generate a Gaussian around x_0 with amplitude A and variance var
 def gauss(x,x_0,A,var):
@@ -176,20 +187,20 @@ def make_sure_path_exists(path):
 #-----------------------------------------------------------------------------------------------------
 #Set topdir,savedir:
 topdir = '..'
-savedir = '/QSO-LAE/eBOSS/selec'
+savedir = '/QSO-LAE/BOSS/paper_selec'
 ## import list of plates to investigate
 plate_mjd = [line.strip().split() for line in open(topdir + savedir + '/plates_selec.txt')]
 
 plate = 0
 fiberid = [0]
 if searchLyA == True and QSOlens == True:
-	f = open(topdir + savedir + '/candidates_QSO_LyA.txt','a')
+	f = open(topdir + savedir + '/candidates_QSO_LyA.txt','w+')
 	f.close()
 elif searchLyA == True and QSOlens == False:
-	f = open(topdir + savedir + '/candidates_LAE.txt','a')
+	f = open(topdir + savedir + '/candidates_LAE.txt','w+')
 	f.close()
 elif searchLyA == False and QSOlens == True:
-	f = open(topdir + savedir + '/candidates_QSO.txt','a')
+	f = open(topdir + savedir + '/candidates_QSO.txt','w+')
 	f.close()
 elif searchLyA == False and QSOlens == False:
 	f = open(topdir + savedir + '/candidates_doublet.txt','a')
@@ -216,8 +227,6 @@ fiber_DR12Q = hdulist[1].data.field('FIBERID')
 
 DR12Q = n.transpose(n.vstack((plate_DR12Q,mjd_DR12Q,fiber_DR12Q,z_PCA_DR12Q,z_vi_DR12Q)))
 
-candidates = n.loadtxt('../QSO-LAE/eBOSS/selec/selec_eboss_platemjdfiber.txt')
-
 #Loop over plates
 for j in n.arange(len(plate_mjd)):
 	# Loading the data --------------------------------------------------------------------------------
@@ -227,12 +236,12 @@ for j in n.arange(len(plate_mjd)):
 	#spfile = topdir + '/fits_files/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
 	#zbfile = topdir + '/fits_files/spZbest-' + str(plate) + '-' + str(mjd) + '.fits'
 	#zlfile = topdir + '/fits_files/spZline-' + str(plate) + '-' + str(mjd) + '.fits'
-	#spfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
-	#zbfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/' + str(plate) + '/v5_7_0/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
-	#zlfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/' + str(plate) + '/v5_7_0/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'
-	spfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
-	zbfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/' + str(plate) + '/v5_10_0/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
-	zlfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/' + str(plate) + '/v5_10_0/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'
+	spfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
+	zbfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/' + str(plate) + '/v5_7_0/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
+	zlfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/' + str(plate) + '/v5_7_0/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'
+	#spfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
+	#zbfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/' + str(plate) + '/v5_10_0/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
+	#zlfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/' + str(plate) + '/v5_10_0/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'
 	hdulist = pf.open(spfile)
 	c0 = hdulist[0].header['coeff0']
 	c1 = hdulist[0].header['coeff1']
@@ -257,6 +266,7 @@ for j in n.arange(len(plate_mjd)):
 	z = hdulist[1].data.field('Z')
 	zwarning = hdulist[1].data.field('ZWARNING')
 	z_err = hdulist[1].data.field('Z_ERR')
+	spectroflux = hdulist[1].data.field('SPECTROFLUX')
 	rchi2 = hdulist[1].data.field('RCHI2')
 	rchi2diff = hdulist[1].data.field('RCHI2DIFF')
 	hdulist.close()
@@ -281,10 +291,12 @@ for j in n.arange(len(plate_mjd)):
 		if len(candidates_list) == 0:
 			continue
 		if QSOlens:
+			
 			redshift_warning = False
 			# Take only QSOs
 			if (not(obj_class[i] == 'QSO   ') or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
 				continue
+			
 			# Reject badly fitted QSOs
 			if (zwarning[i] != 0 or rchi2[i]>10 or z_err[i] < 0):
 				continue	
@@ -296,6 +308,54 @@ for j in n.arange(len(plate_mjd)):
 			else:
 				redshift_warning = True
 			
+			### Mask typical width
+			l_width = 25
+			### Before masking, compute the FWHM of CIV or HBeta depending on redshift:
+			if z[i]<1: 
+				#H_beta, need to mask OIII
+				l_OIII_a = 4959
+				l_OIII_b = 5007
+				l_Hb = 4861
+				ivar[i,wave2bin((1+z[i])*(l_OIII_a -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OIII_a +2*l_width),c0,c1,Nmax)] = 0
+				ivar[i,wave2bin((1+z[i])*(l_OIII_b -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OIII_b +2*l_width),c0,c1,Nmax)] = 0
+				HB_flux = flux[i,wave2bin(4612*(1+z[i]),c0,c1,Nmax):wave2bin(5112*(1+z[i]),c0,c1,Nmax)]
+				HB_wave = wave[wave2bin(4612*(1+z[i]),c0,c1,Nmax):wave2bin(5112*(1+z[i]),c0,c1,Nmax)]
+				HB_weight = n.sqrt(ivar[i,wave2bin(4612*(1+z[i]),c0,c1,Nmax):wave2bin(5112*(1+z[i]),c0,c1,Nmax)])
+				### fit a line to continuum on unmasked points
+				line_coeff = n.polyfit(x = HB_wave, y = HB_flux, deg = 1, w=HB_weight)
+				HB_flux_r = flux[i,wave2bin(4812*(1+z[i]),c0,c1,Nmax):wave2bin(4912*(1+z[i]),c0,c1,Nmax)]
+				HB_wave_r = wave[wave2bin(4812*(1+z[i]),c0,c1,Nmax):wave2bin(4912*(1+z[i]),c0,c1,Nmax)]
+				HB_weight_r = n.sqrt(ivar[i,wave2bin(4812*(1+z[i]),c0,c1,Nmax):wave2bin(4912*(1+z[i]),c0,c1,Nmax)])
+				res =  minimize(chi2Lorenz,[4862*(1+z[i]),10,30],args=(HB_wave_r, HB_flux_r-line_coeff[0]*HB_wave_r -line_coeff[1],HB_weight_r), method='SLSQP', bounds = [(4862*(1+z[i])-5,4862*(1+z[i])+5),(1,100),(1,10000)])
+				params_beta = res.x
+				FWHM = (c/1000)*2*params_beta[1]/((1+z[i])*l_Hb) # km s-1
+				average_flux = n.mean(flux[i,wave2bin(5100-40,c0,c1,Nmax):wave2bin(5100+40,c0,c1,Nmax)])
+				l_times_luminosity = 5100*(1e-17)*average_flux*4*n.pi*(100*parsec*1e6*(c/H0)*quad(x12,0.0,z[i])[0]*(1+z[i]))**2
+			elif 6.2>z[i]>1.5:
+				#CIV
+				l_CIV = 1549.0
+				CIV_flux = flux[i,wave2bin(1300*(1+z[i]),c0,c1,Nmax):wave2bin(1800*(1+z[i]),c0,c1,Nmax)]
+				CIV_wave = wave[wave2bin(1300*(1+z[i]),c0,c1,Nmax):wave2bin(1800*(1+z[i]),c0,c1,Nmax)]
+				CIV_weight = n.sqrt(ivar[i,wave2bin(1300*(1+z[i]),c0,c1,Nmax):wave2bin(1800*(1+z[i]),c0,c1,Nmax)])
+				### fit a line to continuum on unmasked points
+				line_coeff = n.polyfit(x = CIV_wave, y = CIV_flux, deg = 1, w=CIV_weight)
+				CIV_flux_r = flux[i,wave2bin(1500*(1+z[i]),c0,c1,Nmax):wave2bin(1600*(1+z[i]),c0,c1,Nmax)]
+				CIV_wave_r = wave[wave2bin(1500*(1+z[i]),c0,c1,Nmax):wave2bin(1600*(1+z[i]),c0,c1,Nmax)]
+				CIV_weight_r = n.sqrt(ivar[i,wave2bin(1500*(1+z[i]),c0,c1,Nmax):wave2bin(1600*(1+z[i]),c0,c1,Nmax)])
+				res =  minimize(chi2Lorenz,[1549*(1+z[i]),10,10],args=(CIV_wave_r, CIV_flux_r-line_coeff[0]*CIV_wave_r -line_coeff[1],CIV_weight_r), method='SLSQP', bounds = [(1549*(1+z[i])-5,1549*(1+z[i])+5),(1,100),(1,10000)])
+				params_CIV = res.x
+				average_flux = 1350*n.mean(flux[i,wave2bin(1350-40,c0,c1,Nmax):wave2bin(1350+40,c0,c1,Nmax)])
+				FWHM =  (c/1000)*2*params_CIV[1]/((1+z[i])*l_CIV) #km s-1
+				l_times_luminosity = 1350*(1e-17)*average_flux*4*n.pi*(100*parsec*1e6*(c/H0)*quad(x12,0.0,z[i])[0]*(1+z[i]))**2
+			else:
+				FWHM = 0.0
+				l_times_luminosity = 0.0
+				
+
+			M_BH = 10**(6.91 + n.log10(n.sqrt(5100*l_times_luminosity/1e44)*(FWHM/1000)**2)) # Masses solaires
+			sigma_host = 200*10**((n.log10(M_BH) - 7.92)/3.93) ### km s-1
+
+
 			# Masking Lya, NV, SiIV, CIV, etc...
 			l_NV = 1240
 			l_SiIV= 1400.0
@@ -315,7 +375,7 @@ for j in n.arange(len(plate_mjd)):
 			l_OIII_a = 4959
 			l_OIII_b = 5007
 			l_Ha = 6562.81
-			l_width = 25
+			
 			#Mask the above emission lines of QSO's
 			ivar[i,wave2bin((1+z[i])*(l_LyA -2.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_LyA +2.5*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_NV -0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_NV +0.5*l_width),c0,c1,Nmax)] = 0
@@ -336,19 +396,34 @@ for j in n.arange(len(plate_mjd)):
 			ivar[i,wave2bin((1+z[i])*(l_OIII_a -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OIII_a +2*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_OIII_b -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_OIII_b +2*l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(l_Ha -2*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(l_Ha +3*l_width),c0,c1,Nmax)] = 0
-			# additional Lines added after 1st results 
+			#additional Lines added after 1st results 
+			# Ne IV
 			ivar[i,wave2bin((1+z[i])*(2427 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(2427 +l_width),c0,c1,Nmax)] = 0
-			ivar[i,wave2bin((1+z[i])*(3350 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(3350 + l_width),c0,c1,Nmax)] = 0
-			ivar[i,wave2bin((1+z[i])*(4490 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(4490 + l_width),c0,c1,Nmax)] = 0
-			ivar[i,wave2bin((1+z[i])*(5080 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(5080 +l_width),c0,c1,Nmax)] = 0
+			# Ne V
+			ivar[i,wave2bin((1+z[i])*(3350 - 0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(3350 + 0.5*l_width),c0,c1,Nmax)] = 0
+			# NI
 			ivar[i,wave2bin((1+z[i])*(5200 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(5200 +l_width),c0,c1,Nmax)] = 0
+			# [Fe VII]	
+			ivar[i,wave2bin((1+z[i])*(5721 - 0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(5721 + 0.5*l_width),c0,c1,Nmax)] = 0
+			#[Fe VII]	
+			ivar[i,wave2bin((1+z[i])*(6087 - 0.5*l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6087 + 0.5*l_width),c0,c1,Nmax)] = 0
+			# night sky
+			ivar[i,wave2bin((1+z[i])*(6376 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6376 + l_width),c0,c1,Nmax)] = 0
+			# night sky
+			ivar[i,wave2bin((1+z[i])*(6307 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6307 +l_width),c0,c1,Nmax)] = 0
+			# SII
+			ivar[i,wave2bin((1+z[i])*(6734 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6734 + l_width),c0,c1,Nmax)] = 0
+			# SII
+			ivar[i,wave2bin((1+z[i])*(6716 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6716 + l_width),c0,c1,Nmax)] = 0
+			
+			# Fe ?
 			ivar[i,wave2bin((1+z[i])*(5317 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(5317 +l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(5691 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(5691 +l_width),c0,c1,Nmax)] = 0
-			ivar[i,wave2bin((1+z[i])*(6376 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6376 + l_width),c0,c1,Nmax)] = 0
 			ivar[i,wave2bin((1+z[i])*(6504 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6504 + l_width),c0,c1,Nmax)] = 0
-			ivar[i,wave2bin((1+z[i])*(6307 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6307 +l_width),c0,c1,Nmax)] = 0
-			ivar[i,wave2bin((1+z[i])*(6734 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6734 + l_width),c0,c1,Nmax)] = 0
-			ivar[i,wave2bin((1+z[i])*(6716 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(6716 + l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(4490 - l_width),c0,c1,Nmax):wave2bin((1+z[i])*(4490 + l_width),c0,c1,Nmax)] = 0
+			ivar[i,wave2bin((1+z[i])*(5080 -l_width),c0,c1,Nmax):wave2bin((1+z[i])*(5080 +l_width),c0,c1,Nmax)] = 0
+
+
 		else:
 			if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
 				continue
@@ -387,9 +462,10 @@ for j in n.arange(len(plate_mjd)):
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if test>6.0])
 		else:
 			continue
-		# (Legend key:) wavelength(x0) chisq_doublet amp_gauss var_gauss S/N chisq_doublet amp1_doublet amp2_doublet var_doublet x1 x2
+		#(Legend key:) wavelength(x0) chisq_doublet amp_gauss var_gauss S/N chisq_doublet amp1_doublet amp2_doublet var_doublet x1 x2
 		#Keep only center of candidate peaks
 		k = 0
+			
 		if searchLyA == True:
 			while (k < (len(peak_candidates)-1)):
 				if (abs(peak_candidates[k][0] - peak_candidates[k+1][0]) < 10):
@@ -413,8 +489,7 @@ for j in n.arange(len(plate_mjd)):
 		chisq = 10000
 		chisq2 = 10000
 		chisq_skew = 10000
-		chi2_width = 10000
-				
+		chi2_width = 10000	
 	
 		#### check hits are not from foreground galaxy or badly fitted QSO
 		if QSOlens and searchLyA:
@@ -427,8 +502,7 @@ for j in n.arange(len(plate_mjd)):
 							foreground_z = True
 			if foreground_z:
 				continue
-		
-				
+
 
 		#Search for suitable peak candidates
 		for peak in peak_candidates:
@@ -446,9 +520,9 @@ for j in n.arange(len(plate_mjd)):
 				cj1_new = n.sum(new_flux*kernel(int(len(window)/2),width,NormGauss,len(new_flux))*ivar[i,window])
 				cj2_new = n.sum(ivar[i,window]*kernel(int(len(window)/2),width,NormGauss,len(window))**2)
 				SN_fitted = cj1_new/n.sqrt(cj2_new)
-				if  searchLyA and (SN_fitted < 6):
+				if  searchLyA and (SN_fitted < 0):
 					continue
-				elif searchLyA and SN_fitted > 6: 
+				elif searchLyA and SN_fitted > 0: 
 					peak[19] = SN_fitted 
 					reduced_flux[i,window]=new_flux
 				elif searchLyA == False and SN_fitted < 4:
@@ -465,7 +539,8 @@ for j in n.arange(len(plate_mjd)):
 					if test_z > z[i]:
 						for w in em_lines:
 							center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
-							quad_SN += max(SN[center_bin-2:center_bin+2])**2
+							SN_line = n.array(SN[center_bin-2:center_bin+2])
+							quad_SN += max(SN_line*(SN_line>0))**2
 						quad_SN = n.sqrt(quad_SN)
 						if quad_SN > peak[5]:
 							peak[5] = quad_SN
@@ -573,8 +648,6 @@ for j in n.arange(len(plate_mjd)):
 				peak[17] = chisq_skew	
 				peak[18] = chisq_skew_c
 
-				
-			
 				# Testing A.Verhamme MCMC LAE profiles
 				#template_keys = n.array(['./LAE_TEMPLATE/spec_V50_2N17_B40_D0_E150_F500.dat', './LAE_TEMPLATE/spec_V50_2N17_B40_D0_E100_F150.dat',
 				#				'./LAE_TEMPLATE/spec_V50_2N18_B40_D0_E150_F500.dat', './LAE_TEMPLATE/spec_V50_2N18_B40_D0_E100_F150.dat',
@@ -622,42 +695,38 @@ for j in n.arange(len(plate_mjd)):
 					found = True
 			if found==False:
 				doublet = False
-				
+
 		elif searchLyA == False and QSOlens == True:
-			peak_candidates = n.array([peak for peak in peak_candidates if peak[5]>(2.5+peak[6]) ])
+			peak_candidates = n.array([peak for peak in peak_candidates if peak[5]>(2.5+peak[6])])
 			if len(peak_candidates) == 0:
 				continue
 			peak_candidates = sorted(peak_candidates, key=lambda peak: peak[5])
 			if len(peak_candidates) > 3:
 				peak_candidates = peak_candidates[0:3]
 		
-		elif searchLyA == True and QSOlens == False:
-			peak_candidates = n.array([peak for peak in peak_candidates if peak[15]>0.0])
-			peak_candidates = sorted(peak_candidates, key=lambda peak: peak[5])
+		if len(peak_candidates) == 0:
+			continue	
 		
-			
 		# Check that at least 1 candidate is below 9200 Angstrom cut, if not, go to next fiber
-		below_9200 = False
+		below_9200 = False	
 		for peak in peak_candidates:
 			if peak[0] < 9200:
 				below_9200 = True
-		if below_9200 ==False:
-			continue
+		if below_9200 == False:
+			continue	
 		
 		counter4 = counter4+1;
 		#Try to infer background redshift
 		detection = False
 		score = 0.0
-	
-		#print counter1, counter2, counter3, counter4 
+
 		if (doublet == True and searchLyA == False and QSOlens==False):
 			fileD = open(topdir + savedir +  '/candidates_doublet.txt','a')
 			z_s = peak_candidates[doublet_index][0]/3727.24 - 1.0
 			if (z_s > z[i]+0.05):
 				detection = True
 				score += peak_candidates[doublet_index][5]
-				if testMode == False:
-					fileD.write('\n' +str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],peak_candidates[doublet_index][9]]))
+				fileD.write('\n' +str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],peak_candidates[doublet_index][9]]))
 				fileD.close()
 			if len(peak_candidates):	
 				fileDM = open(topdir + savedir + '/candidates_DM.txt','a')
@@ -668,11 +737,11 @@ for j in n.arange(len(plate_mjd)):
 				if z_s > z[i]+0.05 :
 					for peak in temp:
 						for line in compare:
-							if ( abs(peak[0]/line -1 - z_s) < 0.01):
+							if (abs(peak[0]/line -1 - z_s) < 0.01):
 								detection = True
 								confirmed_lines.append(line)
 								score+= peak[5]
-					if (confirmed_lines != [] and testMode == False):
+					if (confirmed_lines != []):
 						fileDM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
 					fileDM.close()
 		elif (doublet != True and len(peak_candidates) > 1 and searchLyA == False and QSOlens==False):
@@ -687,28 +756,40 @@ for j in n.arange(len(plate_mjd)):
 							z_s = peak_candidates[k][0]/group[k]-1.0
 							confirmed_lines.append([group, peak_candidates[k][0]/group[k]-1.0])
 							score+= peak_candidates[j][4]**2+peak_candidates[k][4]**2
-			if (confirmed_lines != [] and  testMode == False):
+			if (confirmed_lines != []):
 				fileM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score, z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
 			fileM.close()
 		elif searchLyA == False and QSOlens == True:
-			for k in range(len(peak_candidates)):
+			for k in range(len(peak_candidates)):				
+				
 				z_backgal = peak_candidates[k][4]
+				
 				fileQSO = open(topdir + savedir +  '/candidates_QSO.txt','a')
-				fileQSO.write('\n' + str([RA[i], DEC[i], int(plate), int(mjd), fiberid[i], z[i], peak[0],peak[4],peak[5],peak[6]]))
+				fileQSO.write('\n' + str([RA[i], DEC[i], int(plate), int(mjd), fiberid[i], z[i], peak[0],peak[4],peak[5],peak[6],spectroflux[i,1], spectroflux[i,3],FWHM,2.355*zline['linesigma'][15], M_BH/1e6, sigma_host, radEinstein(z[i],z_backgal,sigma_host*1000) ]))
 				fileQSO.close()
 				fontP = FontProperties()
 				fontP.set_size('medium')	
-				plt.suptitle(SDSSname(RA[i],DEC[i])+'\n'+'RA='+str(RA[i])+', Dec='+str(DEC[i]) +'\n$z='+str(z[i])+' \pm'+str(z_err[i])+ ', \,\,\, '+'\chi_f^2 = $' + str(rchi2[i]) )
-				plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}$')
+				plt.suptitle(SDSSname(RA[i],DEC[i])+'\n'+'RA='+str(RA[i])+', Dec='+str(DEC[i]) +', $z_{QSO}='+'{:03.3}'.format(z[i])+ '$')
 				
-				gs = gridspec.GridSpec(2,4)
+				gs = gridspec.GridSpec(1,4)
 				p1 = plt.subplot(gs[0,:4])
-				p1.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux')
+				
+				smoothed_flux = n.array([n.mean(flux[i,ii-2:ii+3]) for ii in range(len(flux[0,:])) if (ii>4 and ii<len(flux[0,:])-4)])
+						
+				p1.plot(wave[5:-4], smoothed_flux, 'k', label = 'BOSS Flux', drawstyle='steps-mid')
+				#p1.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux')
 				p1.plot(wave, synflux[i,:], 'r', label = 'PCA fit')
-				p1.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1, prop=fontP)
+				if z[i]<1:
+					p1.plot(HB_wave, lorentz(HB_wave, params_beta[0],params_beta[1],params_beta[2]) + HB_wave*line_coeff[0] + line_coeff[1], '--g')
 				box = p1.get_position()
-				p1.set_position([box.x0,box.y0,box.width*0.9,box.height])
+
+				
+				p1.set_position([box.x0,box.y0+0.02,box.width*0.9,box.height])
 				p1.set_ylim(n.min(synflux[i,:])-3, n.max(synflux[i,:])+3)
+				p1.vlines(x = em_lines*(1+z_backgal),ymin= -100,ymax= 100,colors= 'g',linestyles='dashed')
+				p1.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1, prop=fontP)
+				p1.set_xlim(3500,10500)
+				plt.ylabel('Flux [$10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$')
 				
 				p2 = plt.subplot(gs[1,:1])
 				p2.vlines(x = em_lines*(1+z_backgal),ymin= -100,ymax= 100,colors= 'g',linestyles='dashed')
@@ -717,18 +798,26 @@ for j in n.arange(len(plate_mjd)):
 				p2.plot(wave[wave2bin((1+z_backgal)*(3727-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(3727+10),c0,c1,Nmax)],synflux[i,wave2bin((1+z_backgal)*(3727-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(3727+10),c0,c1,Nmax)],'r', label = 'OII', drawstyle='steps-mid')
 				if loc_flux != []:
 					p2.set_ylim(n.min(loc_flux)-1,n.max(loc_flux)+1)
-				plt.xlabel('OII')
+				plt.title('[OII] 3727')
 				p2.set_xlim((1+z_backgal)*(3727-10),(1+z_backgal)*(3727+10))
+				x1 = int((1+z_backgal)*3727)
+				plt.xticks([x1-15,x1,x1+15])
+				plt.ylabel('Flux [$10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$')
 				
-				p3 = plt.subplot(gs[1,1:3])
+				p3 = plt.subplot(gs[1,1:4])
 				p3.vlines(x = em_lines*(1+z_backgal),ymin= -100,ymax= 100,colors= 'g',linestyles='dashed')
 				loc_flux = flux[i,wave2bin((1+z_backgal)*(4861-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(5007+10),c0,c1,Nmax)]
 				p3.plot(wave[wave2bin((1+z_backgal)*(4861-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(5007+10),c0,c1,Nmax)],loc_flux,'k', label = 'OIII, Hb', drawstyle='steps-mid')
 				p3.plot(wave[wave2bin((1+z_backgal)*(4861-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(5007+10),c0,c1,Nmax)],synflux[i,wave2bin((1+z_backgal)*(4861-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(5007+10),c0,c1,Nmax)],'r', label = 'OIII, Hb', drawstyle='steps-mid')
 				if loc_flux != []:
 					p3.set_ylim(n.min(loc_flux)-1,n.max(loc_flux)+1)
-				plt.xlabel('OIII,Hb')
+				plt.title(r'H$\beta$,[OIII] 4959, [OIII] 5007')
+				plt.xlabel(r'Observed wavelength [$\AA$]')
 				p3.set_xlim((1+z_backgal)*(4861-10),(1+z_backgal)*(5007+10))
+				x1 = int((1+z_backgal)*4862/10.)*10
+				plt.xticks([x1,x1+40,x1+80,x1+120, x1+160,x1+200])
+				box = p3.get_position()
+				p3.set_position([box.x0+0.02,box.y0,box.width*0.9,box.height])
 				
 				p4 = plt.subplot(gs[1,3:4])
 				p4.vlines(x = em_lines*(1+z_backgal),ymin= -100,ymax= 100,colors= 'g',linestyles='dashed')
@@ -737,16 +826,17 @@ for j in n.arange(len(plate_mjd)):
 				p4.plot(wave[wave2bin((1+z_backgal)*(6562-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(6562+10),c0,c1,Nmax)],synflux[i,wave2bin((1+z_backgal)*(6562-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(6562+10),c0,c1,Nmax)],'r', label = 'Ha', drawstyle='steps-mid')
 				if loc_flux != []:
 					p4.set_ylim(n.min(loc_flux)-1,n.max(loc_flux)+1)
-				plt.xlabel('Ha')
+				plt.title(r'H$\alpha$')
 				p4.set_xlim((1+z_backgal)*(6562-10),(1+z_backgal)*(6562+10))
+				x1 = int((1+z_backgal)*6562)
+				plt.xticks([x1-10,x1,x1+10])
+				
 				
 				make_sure_path_exists(topdir + savedir +'/plots/')
-				if testMode:
-					plt.show()
-				else:
-					plt.savefig(topdir + savedir +'/plots/'+SDSSname(RA[i],DEC[i])+ '-' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-'+str(k+1) +'.png')
+				#plt.show()
+				plt.savefig(topdir + savedir +'/plots/'+SDSSname(RA[i],DEC[i])+ '-' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-'+str(k+1) +'.png')
 				plt.close()
-			
+	
 		elif searchLyA==True and QSOlens==True:
 			if QSOlens:
 				fileLyA = open(topdir + savedir +  '/candidates_QSO_LyA.txt','a')
@@ -764,7 +854,7 @@ for j in n.arange(len(plate_mjd)):
 					SNlines += max(SN[center_bin-2:center_bin+2])**2
 				SNlines = n.sqrt(SNlines)
 				
-				if SNlines < 5:
+				if SNlines < 100:
 					if n.abs(peak[9]) > n.abs(peak[13]):
 						skewness = peak[9]
 					else: 
@@ -809,92 +899,122 @@ for j in n.arange(len(plate_mjd)):
 					l_red_10 = (F-b)/a
 					Sw = S*(l_red_10-l_blue_10)
 					
-					
 					a_lambda = (l_red_10-local_wave[peak_index])/(local_wave[peak_index]-l_blue_10)
 					
 					fileLyA.write('\n' + str([peak[0],peak[6],z[i], SNlines ,RA[i], DEC[i], int(plate), int(mjd), fiberid[i],params[0],params[1],params[2],params[3],params[4],
-									params_skew[0],params_skew[1],params_skew[2],params_skew[3],params_skew[4],params_skew[5],params_skew[6],params_skew[7],peak[15],peak[16],peak[17],peak[18], skewness, S, Sw, a_lambda,rchi2[i],peak[19]]))
+									params_skew[0],params_skew[1],params_skew[2],params_skew[3],params_skew[4],params_skew[5],params_skew[6],params_skew[7],peak[15],peak[16],peak[17],peak[18], skewness, S, Sw, a_lambda,rchi2[i],peak[19],spectroflux[i,1], spectroflux[i,3]]))
+					
 					
 					# Create and save graph
 					fontP = FontProperties()
 					fontP.set_size('medium')	
+					plt.figure(figsize=(12,3))
 					#plt.suptitle('RA='+str(RA[i])+', Dec='+str(DEC[i])+', Plate='+str(plate)+', Fiber='+str(fiberid[i])+', MJD='+str(mjd)+'\n$z='+str(z[i])+' \pm'+str(z_err[i])+ ',  \chi_f^2 = ' + str(rchi2[i])   +'$, Class='+str(obj_class[i]) )
-					plt.suptitle(SDSSname(RA[i],DEC[i])+'\n'+'RA='+str(RA[i])+', Dec='+str(DEC[i]) +'\n$z='+str(z[i])+' \pm'+str(z_err[i])+ ', \,\,\, '+'\chi_f^2 = $' + str(rchi2[i]) )
-				
+					plt.suptitle(SDSSname(RA[i],DEC[i])+'\n'+'RA='+str(RA[i])+', Dec='+str(DEC[i]) +', $z_{QSO}='+'{:03.3}'.format(z[i])+ '$')
 					plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}$')
-					gs = gridspec.GridSpec(3,2)
-					p1 = plt.subplot(gs[0,:2])
-					p1.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux', drawstyle='steps-mid')
-					p1.plot(wave, synflux[i,:], 'r', label = 'PCA fit', drawstyle='steps-mid')
-					#p1.plot(wave,ivar[i,:]-15, 'g', label = 'var$^{-1}-15$')
 					
-					p1.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1, prop=fontP)
-					box = p1.get_position()
-					p1.set_position([box.x0,box.y0,box.width*0.9,box.height])
-					p1.set_ylim(n.min(synflux[i,:])-3, n.max(synflux[i,:])+3)
-					if QSOlens == False:
-						p1.set_xlim(3600,6000)
-					
-					
-					window = n.linspace(wave2bin(x0,c0,c1,Nmax)-40,wave2bin(x0,c0,c1,Nmax)+40,81,dtype = n.int16)	
-					if QSOlens:
-						p3 = plt.subplot(gs[1,:1])
-						p3.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux', drawstyle='steps-mid')
-						p3.plot(wave, synflux[i,:], 'r', label = 'PCA fit', drawstyle='steps-mid')
-						p3.set_xlim(n.min(wave[window]),n.max(wave[window]))
-						p3.set_ylim(n.min(synflux[i,window])-1, n.max(flux[i,window])+1)
-						box = p3.get_position()
-						p3.set_position([box.x0,box.y0,box.width*0.8,box.height])
-						plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$', fontsize = 18)
-						p3.legend(loc='upper right', bbox_to_anchor = (1.4,1), ncol = 1,prop=fontP)
-						p3.locator_params(axis='x',nbins=6)
+					if paper:
+						gs = gridspec.GridSpec(1,3)
 						
-						median_local = n.median(reduced_flux[i,window])
-						fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<5)*n.sqrt(ivar[i,window])) )
-						p4 = plt.subplot(gs[1,1:2])
-						p4.plot(wave[window], fit_QSO(wave[window]), '-m',label = 'Order 3 fit')
-						box = p4.get_position()
-						p4.set_xlim(n.min(wave[window]),n.max(wave[window]))
-						p4.set_position([box.x0,box.y0,box.width*0.8,box.height])
-						p4.plot(wave[window], reduced_flux[i,window],'k', label = 'Flux - PCA', drawstyle='steps-mid')
-						p4.legend(loc='upper right', bbox_to_anchor = (1.4,1), ncol = 1,prop=fontP)
-						p4.locator_params(axis='x',nbins=6)
-					else: 
-						p3 = plt.subplot(gs[1,:2])
-						p3.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux', drawstyle='steps-mid')
-						p3.plot(wave, synflux[i,:], 'r', label = 'PCA fit', drawstyle='steps-mid')
-						p3.legend(prop=fontP)
-						p3.set_xlim(peak[0]-50,peak[0]+60)
-						p3.set_ylim(n.min(synflux[i,bounds])-2, n.max(flux[i,bounds])+3)
-						plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$', fontsize=18)	
+						smoothed_flux = n.array([n.mean(flux[i,ii-2:ii+3]) for ii in range(len(flux[0,:])) if (ii>4 and ii<len(flux[0,:])-4)])
+						
+						p1 = plt.subplot(gs[0,:2])
+						#p1.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux', drawstyle='steps-mid')
+						p1.plot(wave[5:-4], smoothed_flux, 'k', label = 'eBOSS Flux', drawstyle='steps-mid')
+						p1.plot(wave, synflux[i,:], 'r', label = 'PCA fit', drawstyle='steps-mid')
+						#p1.fill_between(wave,n.min(synflux[i,:])-10,n.max(synflux[i,:])+10,where=(ivar[i,:]<0.001),facecolor='k', alpha=0.2)
+						p1.set_ylim(n.min(synflux[i,:])-3, n.max(synflux[i,:])+3)
+						p1.vlines(x = x0,ymin= -100,ymax= 100,colors= 'g',linestyles='dashed')
+						box = p1.get_position()
+						p1.set_position([box.x0,box.y0+0.06,box.width,box.height*0.85])
+						plt.ylabel('Flux [$10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}$]')
+						plt.xlabel('Observed wavelength [$\AA$]')
+						p2 = plt.subplot(gs[0,2:3])
+						p2.plot(wave,  flux[i,:], 'k', label = 'eBOSS Flux', drawstyle='steps-mid')
+						p2.plot(wave, synflux[i,:], 'r', label = 'PCA fit', drawstyle='steps-mid')
+						p2.set_ylim(n.min(flux[i,window]), n.max(flux[i,window])+0.5)
+						p2.legend(loc='upper right', bbox_to_anchor = (1.3,1.1), ncol = 1, prop=fontP)
+						box = p2.get_position()
+						p2.set_position([box.x0,box.y0+0.06,box.width*0.9,box.height*0.85])
+						x1 = int(x0/10.)*10
+						plt.xticks([x1-10,x1,x1+10,x1+20])
+						p2.set_xlim(x0-15,x0+25)
+						plt.xlabel('Observed wavelength [$\AA$]')
+						
+					else:
+						
+						gs = gridspec.GridSpec(2,2)
+						p1 = plt.subplot(gs[0,:2])
+						p1.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux', drawstyle='steps-mid')
+						p1.plot(wave, synflux[i,:], 'r', label = 'PCA fit', drawstyle='steps-mid')
+						#p1.plot(wave,ivar[i,:]-15, 'g', label = 'var$^{-1}-15$')
+						p1.fill_between(wave,n.min(synflux[i,:])-10,n.max(synflux[i,:])+10,where=(ivar[i,:]<0.000001),facecolor='k', alpha=0.2)
+						p1.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1, prop=fontP)
+						box = p1.get_position()
+						p1.set_position([box.x0,box.y0,box.width*0.9,box.height])
+						p1.set_ylim(n.min(synflux[i,:])-3, n.max(synflux[i,:])+3)
+						plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$')
+						if QSOlens == False:
+							p1.set_xlim(3600,6000)
 						
 						
-					p2 = plt.subplot(gs[2,:2])
-					if QSOlens:
-						p2.plot(wave[window], reduced_flux[i,window]-fit_QSO(wave[window]),'k', label = 'Reduced flux', drawstyle='steps-mid')
-					else:
-						p2.plot(wave[window], reduced_flux[i,window],'k', label = 'Reduced flux')
-					if 0.0<peak[16]<peak[15]:
-						p2.plot(wave,gauss2(x=wave,x1=params[0],x2=params[1],A1=params[2],A2=params[3],var=params[4]),'g', label = r'$\chi_D^2 = $' + '{:.4}'.format(peak[16]))
-					else:
-						p2.plot(wave,gauss(x=wave, x_0=params[0], A=params[1], var=params[2]),'r', label = r'$\chi_G^2 = $' + '{:.4}'.format(peak[15]) )
-					if 0.0<peak[17]<peak[18]:
-						p2.plot(wave,skew(x=wave,A = params_skew[0], w=params_skew[1], a=params_skew[2], eps=params_skew[3]), 'b', label =r'$\chi_S^2 = $' + '{:.4}'.format(peak[17]))
-					else:
-						p2.plot(wave,skew2(x=wave,A1 = params_skew[0], w1=params_skew[1], a1=params_skew[2], eps1 = params_skew[3], A2 = params_skew[4], w2=params_skew[5], a2=params_skew[6], eps2=params_skew[7]), 'c',label= r'$\chi_{S2}^2 = $' + '{:.4}'.format(peak[18]))
-					box = p2.get_position()
-					p2.set_position([box.x0,box.y0,box.width*0.9,box.height])
-					p2.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1,prop=fontP)
-					plt.xlabel('$Wavelength\, [\AA]$',fontsize = 18)
-					p2.set_xlim(n.min(wave[window]),n.max(wave[window]))
-					if QSOlens:
-						p2.set_ylim(-1, n.max(reduced_flux[i,window]-fit_QSO(wave[window])+1))
+						window = n.linspace(wave2bin(x0,c0,c1,Nmax)-40,wave2bin(x0,c0,c1,Nmax)+40,81,dtype = n.int16)	
+						if QSOlens:
+							p3 = plt.subplot(gs[1,:1])
+							p3.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux', drawstyle='steps-mid')
+							p3.plot(wave, synflux[i,:], 'r', label = 'PCA fit', drawstyle='steps-mid')
+							p3.set_xlim(n.min(wave[window]),n.max(wave[window]))
+							p3.set_ylim(n.min(synflux[i,window])-1, n.max(flux[i,window])+1)
+							box = p3.get_position()
+							p3.set_position([box.x0,box.y0,box.width*0.8,box.height])
+							plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$')
+							p3.legend(loc='upper right', bbox_to_anchor = (1.4,1), ncol = 1,prop=fontP)
+							p3.locator_params(axis='x',nbins=6)
+							
+							median_local = n.median(reduced_flux[i,window])
+							fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<5)*n.sqrt(ivar[i,window])) )
+							p4 = plt.subplot(gs[1,1:2])
+							p4.plot(wave[window], fit_QSO(wave[window]), '-m',label = 'Order 3 fit')
+							box = p4.get_position()
+							p4.set_xlim(n.min(wave[window]),n.max(wave[window]))
+							p4.set_position([box.x0,box.y0,box.width*0.8,box.height])
+							p4.plot(wave[window], reduced_flux[i,window],'k', label = 'Reduced flux', drawstyle='steps-mid')
+							p4.legend(loc='upper right', bbox_to_anchor = (1.4,1), ncol = 1,prop=fontP)
+							p4.locator_params(axis='x',nbins=6)
+						else: 
+							p3 = plt.subplot(gs[1,:2])
+							p3.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux', drawstyle='steps-mid')
+							p3.plot(wave, synflux[i,:], 'r', label = 'PCA fit', drawstyle='steps-mid')
+							p3.legend(prop=fontP)
+							p3.set_xlim(peak[0]-50,peak[0]+60)
+							p3.set_ylim(n.min(synflux[i,bounds])-2, n.max(flux[i,bounds])+3)
+							plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$', fontsize=18)	
+							
+							
+						p2 = plt.subplot(gs[2,:2])
+						if QSOlens:
+							p2.plot(wave[window], reduced_flux[i,window]-fit_QSO(wave[window]),'k', label = 'Reduced flux', drawstyle='steps-mid')
+						else:
+							p2.plot(wave[window], reduced_flux[i,window],'k', label = 'Reduced flux')
+						if 0.0<peak[16]<peak[15]:
+							p2.plot(wave,gauss2(x=wave,x1=params[0],x2=params[1],A1=params[2],A2=params[3],var=params[4]),'g', label = r'$\chi_D^2 = $' + '{:.4}'.format(peak[16]))
+						else:
+							p2.plot(wave,gauss(x=wave, x_0=params[0], A=params[1], var=params[2]),'r', label = r'$\chi_G^2 = $' + '{:.4}'.format(peak[15]) )
+						if 0.0<peak[17]<peak[18]:
+							p2.plot(wave,skew(x=wave,A = params_skew[0], w=params_skew[1], a=params_skew[2], eps=params_skew[3]), 'b', label =r'$\chi_S^2 = $' + '{:.4}'.format(peak[17]))
+						else:
+							p2.plot(wave,skew2(x=wave,A1 = params_skew[0], w1=params_skew[1], a1=params_skew[2], eps1 = params_skew[3], A2 = params_skew[4], w2=params_skew[5], a2=params_skew[6], eps2=params_skew[7]), 'c',label= r'$\chi_{S2}^2 = $' + '{:.4}'.format(peak[18]))
+						box = p2.get_position()
+						p2.set_position([box.x0,box.y0,box.width*0.9,box.height])
+						p2.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1,prop=fontP)
+						plt.xlabel('$Wavelength\, [\AA]$',fontsize = 18)
+						p2.set_xlim(n.min(wave[window]),n.max(wave[window]))
+						if QSOlens:
+							p2.set_ylim(-1, n.max(reduced_flux[i,window]-fit_QSO(wave[window])+1))
 
 		 			make_sure_path_exists(topdir + savedir +'/plots/')
-					if testMode:
-						plt.show()
-					else:
-						plt.savefig(topdir + savedir +'/plots/'+SDSSname(RA[i],DEC[i])+ '-' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-' + str(n_peak)+ '.png')
+					#plt.show()
+					plt.savefig(topdir + savedir +'/plots/'+SDSSname(RA[i],DEC[i])+ '-' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-' + str(n_peak)+ '.eps', format = 'eps', dpi = 2000)
 					plt.close()
 					n_peak = n_peak +1
 			fileLyA.close()
@@ -910,18 +1030,7 @@ for j in n.arange(len(plate_mjd)):
 				else:
 					# Save emission line 
 					peaks.append([peak[0], peak[2], peak[3]])
-		peak_number = len(peak_candidates)
-		#print "plate ", plate, " fiber ", fiberid[i], " peak ", peak_number,  "\n",		
-
-		######################################
-		#TEST MODE
-		#if testMode: 
-			#print 'Doublet: ', doublet,'9200: ', below_9200, 'Detection: ', detection
-			#detection = True
-			#doublet = True
-			#below_9200 = True
-			#print peak_candidates
-		######################################
+		peak_number = len(peak_candidates)	
 		
 		#Graphs OII doublet
 		if ((peak_number>1 or doublet==True) and below_9200 and detection and searchLyA==False and QSOlens==False):
@@ -938,10 +1047,8 @@ for j in n.arange(len(plate_mjd)):
 				plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$')
 				ax.plot(wave,fit,'r')
 				make_sure_path_exists(topdir + savedir +'/plots/')
-				if testMode:
-					plt.show()
-				else:
-					plt.savefig(topdir + savedir +'/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
+				#plt.show()
+				plt.savefig(topdir + savedir +'/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
 				plt.close()
 	
 			# If doublet, plot in two different windows
@@ -973,9 +1080,6 @@ for j in n.arange(len(plate_mjd)):
 				ax1.set_xlim([n.min(wave),n.max(wave)])
 				
 				make_sure_path_exists(topdir + savedir +'/plots/')
-				if testMode:
-					plt.show()
-				else:
-					plt.savefig(topdir + savedir +'/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
+				#plt.show()
+				plt.savefig(topdir + savedir +'/plots/' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '.png')
 				plt.close()
-

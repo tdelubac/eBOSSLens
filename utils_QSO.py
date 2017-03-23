@@ -14,8 +14,9 @@ def DR12Q_extractor(path = './Superset_DR12Q.fits'):
 	fiber_DR12Q = hdulist[1].data.field('FIBERID')
 	return np.transpose(np.vstack((plate_DR12Q,mjd_DR12Q,fiber_DR12Q,z_PCA_DR12Q,z_vi_DR12Q)))
 
-def mask_QSO(ivar,z):
+def mask_QSO(ivar,z, l_width,c0,c1,Nmax):
 	# Masking Lya, NV, SiIV, CIV, etc...
+	l_LyA = 1215.668 #Angstroms
 	l_NV = 1240
 	l_SiIV= 1400.0
 	l_CIV = 1549.0
@@ -84,10 +85,11 @@ def mask_QSO(ivar,z):
 	
 	return ivar
 
-def QSO_compute_FWHM(ivar,flux,wave,c0,c1,Nmax,z):
+def QSO_compute_FWHM(ivar,flux,wave,c0,c1,Nmax,z,l_width):
 	### Constants:
 	H0 = 72e3 #m s-1 Mpc-1
 	c = 299792458 #m s-1
+	parsec = 3.0857e16 #m
 
 	if z<1: 
 		#H_beta, need to mask OIII
@@ -110,7 +112,7 @@ def QSO_compute_FWHM(ivar,flux,wave,c0,c1,Nmax,z):
 		average_flux = np.mean(flux[wave2bin(5100-40,c0,c1,Nmax):wave2bin(5100+40,c0,c1,Nmax)])
 		l_times_luminosity = 5100*(1e-17)*average_flux*4*np.pi*(100*parsec*1e6*(c/H0)*quad(x12,0.0,z)[0]*(1+z))**2
 	elif 6.2>z>1.5:
-		HB_wave = None
+		HB_wave = 0.0
 		#CIV
 		l_CIV = 1549.0
 		CIV_flux = flux[wave2bin(1300*(1+z),c0,c1,Nmax):wave2bin(1800*(1+z),c0,c1,Nmax)]
@@ -127,6 +129,7 @@ def QSO_compute_FWHM(ivar,flux,wave,c0,c1,Nmax,z):
 		FWHM =  (c/1000)*2*params_CIV[1]/((1+z)*l_CIV) #km s-1
 		l_times_luminosity = 1350*(1e-17)*average_flux*4*np.pi*(100*parsec*1e6*(c/H0)*quad(x12,0.0,z)[0]*(1+z))**2
 	else:
+		HB_wave = 0.0
 		FWHM = 0.0
 		l_times_luminosity = 0.0
 		

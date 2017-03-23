@@ -6,10 +6,17 @@
 # 'Paper' mode removes intermediate steps plots useful for analysis but irrelevant for publication
 # To change list of plate to analyse: line 34
 
+# show graphs or not? (do not use show on PC clusters!!!)
+plot_show = False
+
 # Imports
 import numpy as n
 import pyfits as pf
 import matplotlib as mpl
+
+if plot_show == False:
+	mpl.use('Agg')
+	
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
 import math
@@ -29,24 +36,24 @@ from utils_Gal import *
 #-----------------------------------------------------------------------------------------------------
 # Operation mode
 searchLyA = False
-QSOlens = False
+QSOlens = True
 paper = True
 Jackpot = False
 # BOSS or eBOSS data?
 BOSS = True
+BOSS_v5_7_2 = True
 eBOSS = False
-# show graphs or not? (do not use show on PC clusters!!!)
-plot_show = False
-# Max chi2 for gaussian/ doublet fitting
+
+# Max chi2 for gaussian/ doublet fitting OII
 max_chi2 = 4.0
 #Set topdir,savedir:
 topdir = '..'
-savedir = '/test_elodie/'
+savedir = '/BOSS_v5_7_2/'
 #-------- give file in [plate mjd] format of plates you want to inspect -----------------
-plates_list = 'plates_selec.txt'
+plates_list = 'list_v5_7_2.txt'
 #-------- give file in [plate mjd fiber] format of specific objects you want to inspect -----------------
 inspect_candidates = False
-candidates = n.loadtxt('../QSO-Gal/QSO-Gal_selec2/best/selec.txt')
+candidates = n.loadtxt( './tim_selec.txt')
 #----------------------------------------------------------------------------------------------------
 #------------------------------------ INITIALIZATION ------------------------------------------------
 plate_mjd = [line.strip().split() for line in open(topdir + savedir + plates_list)]
@@ -86,8 +93,7 @@ counter2 = 0
 counter3 = 0
 counter4 = 0
 
-if plot_show == False:
-	mpl.use('Agg')
+
 
 #Loop over plates
 for j in n.arange(len(plate_mjd)):
@@ -97,7 +103,7 @@ for j in n.arange(len(plate_mjd)):
 	plate = plate_mjd[j][0]
 
 	c0,c1,wave,flux,ivar,vdisp, synflux,fiberid, RA, DEC, obj_id, obj_class, \
-		obj_type, z, zwarning,z_err, spectroflux, rchi2, rchi2diff, zline,npix = load_data(mjd = mjd, plate=plate, BOSS = True, eBOSS = False, logdir = '../../../../../SCRATCH/' )
+		obj_type, z, zwarning,z_err, spectroflux, rchi2, rchi2diff, zline,npix = load_data(mjd = mjd, plate=plate, BOSS = True, eBOSS = False, logdir = '../../../../../SCRATCH/', BOSS_version = BOSS_v5_7_2 )
 	#-----------------------------------------------------------------------------------------------------
 	
 
@@ -114,10 +120,11 @@ for j in n.arange(len(plate_mjd)):
 	#------------- Loop over fibers------------------------------------------------------------------
 	for i in  n.arange(len(flux[:,0])):
 	#Using above file, allow to look only at certain plate-mjd-fiber 
+		
 		candidates_list = [x for x in candidates if (int(x[0])==int(plate) and int(x[1])==int(mjd) and  int(x[2])== int(fiberid[i]))]
 		if len(candidates_list)== 0 and inspect_candidates :
-
 			continue
+		
 		if QSOlens:
 			
 			redshift_warning = False
@@ -140,12 +147,12 @@ for j in n.arange(len(plate_mjd)):
 
 			l_width = 15
 			### Before masking, compute the FWHM of CIV or HBeta depending on redshift:
-			FWHM,l_times_luminosity, HB_wave = QSO_compute_FWHM(ivar = ivar[i,:],flux = flux[i,:], wave = wave[i,:],c0=c0,c1=c1,Nmax=Nmax,z =z[i])
+			FWHM,l_times_luminosity, HB_wave = QSO_compute_FWHM(ivar = ivar[i,:],flux = flux[i,:], wave = wave,c0=c0,c1=c1,Nmax=Nmax,z =z[i],l_width = l_width)
 			
 			M_BH = 10**(6.91 + n.log10(n.sqrt(5100*l_times_luminosity/1e44)*(FWHM/1000)**2)) # Masses solaires
 			sigma_host = 200*10**((n.log10(M_BH) - 7.92)/3.93) ### km s-1
 
-			ivar = masks_QSO(ivar=ivar,z=z[i])	
+			ivar = mask_QSO(ivar=ivar,z=z[i], l_width = l_width, c0 = c0 , c1=c1,Nmax=Nmax)	
 			
 		else:
 			if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
@@ -176,7 +183,6 @@ for j in n.arange(len(plate_mjd)):
 		SN = n.zeros(len(wave))
 		SN[width*0.5:len(wave)-width*0.5] = Cj1/n.sqrt(Cj2)
 
-                        
 
 		if searchLyA == True and QSOlens == True:
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  (l_LyA*(1+z[i])+300)<x0<8000)])
@@ -568,7 +574,6 @@ for j in n.arange(len(plate_mjd)):
 						temp_fluxes_OII[j-4] = n.sum((flux[i,temp_bounds]-synflux[i,temp_bounds])*dwave[temp_bounds])
 						temp_bounds = n.linspace(wave2bin((1+z_backgal)*5007,c0,c1,Nmax)-j,wave2bin((1+z_backgal)*5007,c0,c1,Nmax)+j,2*j+1,dtype = n.int16)
 						temp_fluxes_OIII[j-4] = n.sum((flux[i,temp_bounds]-synflux[i,temp_bounds])*dwave[temp_bounds])
-					#print dwave
 				OII_flux = n.median(temp_fluxes_OII)
 				OIII_flux = n.median(temp_fluxes_OIII)
 				

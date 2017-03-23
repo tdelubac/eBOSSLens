@@ -159,12 +159,16 @@ def make_sure_path_exists(path):
             raise
 #-----------------------------------------------------------------------------------------------------
 
-def load_data(mjd, plate, BOSS = True, eBOSS = False, logdir = '../../../../../SCRATCH/' ):
-	if BOSS == True:
+def load_data(mjd, plate, BOSS = True, eBOSS = False, logdir = '../../../../../SCRATCH/' , BOSS_version = False):
+	if BOSS == True and BOSS_version == False:
 		spfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
 		zbfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/' + str(plate) + '/v5_7_0/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
 		zlfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/' + str(plate) + '/v5_7_0/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'
-	elif eBOSS == False:
+	elif BOSS == True and BOSS_version == True:
+		spfile = '../../../../../SCRATCH/BOSS/data/v5_7_2/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
+		zbfile = '../../../../../SCRATCH/BOSS/data/v5_7_2/' + str(plate) + '/v5_7_2/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
+		zlfile = '../../../../../SCRATCH/BOSS/data/v5_7_2/' + str(plate) + '/v5_7_2/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'
+	elif eBOSS == True:
 		spfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
 		zbfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/' + str(plate) + '/v5_10_0/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
 		zlfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/' + str(plate) + '/v5_10_0/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'

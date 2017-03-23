@@ -36,9 +36,9 @@ from utils_Gal import *
 #-----------------------------------------------------------------------------------------------------
 # Operation mode
 searchLyA = False
-QSOlens = True
+QSOlens = False
 paper = True
-Jackpot = False
+Jackpot = True
 # BOSS or eBOSS data?
 BOSS = True
 BOSS_v5_7_2 = True
@@ -48,7 +48,7 @@ eBOSS = False
 max_chi2 = 4.0
 #Set topdir,savedir:
 topdir = '..'
-savedir = '/BOSS_v5_7_2/'
+savedir = '/Jackpot/BOSS_v5_7_2/'
 #-------- give file in [plate mjd] format of plates you want to inspect -----------------
 plates_list = 'list_v5_7_2.txt'
 #-------- give file in [plate mjd fiber] format of specific objects you want to inspect -----------------
@@ -59,25 +59,8 @@ candidates = n.loadtxt( './tim_selec.txt')
 plate_mjd = [line.strip().split() for line in open(topdir + savedir + plates_list)]
 plate = 0
 fiberid = [0]
-if searchLyA == True and QSOlens == True:
-	f = open(topdir + savedir + '/candidates_QSO_LyA.txt','w+')
-	f.close()
-elif searchLyA == True and QSOlens == False:
-	f = open(topdir + savedir + '/candidates_LAE.txt','w+')
-	f.close()
-elif searchLyA == False and QSOlens == True:
-	f = open(topdir + savedir + '/candidates_QSO.txt','w+')
-	f.close()
-elif Jackpot:
-	f = open(topdir + savedir + '/candidates_Jackpot.txt','w+')
-	f.close()
-elif searchLyA == False and QSOlens == False:
-	f = open(topdir + savedir + '/candidates_doublet.txt','a')
-	f.close() 
-	f = open(topdir + savedir + '/candidates_DM.txt','a')
-	f.close()
-	f = open(topdir + savedir + '/candidates_multi.txt','a')
-	f.close()
+
+
 
 #Set of emission lines used for lensed galaxy detection: OII, Hb, OIII, OIII, Ha
 em_lines = n.array([3726.5,4861.325,4958.911,5006.843,6562.801])
@@ -122,7 +105,7 @@ for j in n.arange(len(plate_mjd)):
 	#Using above file, allow to look only at certain plate-mjd-fiber 
 		
 		candidates_list = [x for x in candidates if (int(x[0])==int(plate) and int(x[1])==int(mjd) and  int(x[2])== int(fiberid[i]))]
-		if len(candidates_list)== 0 and inspect_candidates :
+		if len(candidates_list)== 0 and inspect_candidates == True :
 			continue
 		
 		if QSOlens:
@@ -191,7 +174,7 @@ for j in n.arange(len(plate_mjd)):
 		elif searchLyA == True and QSOlens == False:
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  3600<x0<4800)])
 		elif Jackpot == True:
-			# x0 free free z1 z2 Quad_SN2 SN0->Quad_SN1
+			# x0 z1 z2 Quad_SN2 SN0->Quad_SN1  free free
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(wave,SN) if test>8.0])
 		elif searchLyA == False and QSOlens == False:
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if test>6.0])
@@ -296,6 +279,9 @@ for j in n.arange(len(plate_mjd)):
 				continue
 
 			### Special case: Jackpot lenses 
+			
+			mask_width_Jackpot = 50
+			
 			if Jackpot == True:
 
 				first_lens = False
@@ -304,11 +290,12 @@ for j in n.arange(len(plate_mjd)):
 				for l in em_lines:
 					test_z = peak[0]/l -1.0
 					if test_z > z[i]+0.05:
-						quad_SN_1 = 0.0
+						quad_SN_1 = peak[6]
 						for w in em_lines:
-							center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
-							SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z), zline, fiberid[i], z[i], int(mjd), int(plate))))
-							quad_SN_1 += max(SN_line*(SN_line>0))**2
+							if w*(1+test_z) < 9500:
+								center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
+								SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z), zline, fiberid[i], z[i], int(mjd), int(plate), mask_width_Jackpot)))
+								quad_SN_1 += max(SN_line*(SN_line>0))**2
 						quad_SN_1 = n.sqrt(quad_SN_1)
 						if quad_SN_1 > peak[6] + 6:
 							peak[5] = quad_SN_1
@@ -316,15 +303,16 @@ for j in n.arange(len(plate_mjd)):
 							first_lens = True
 				if first_lens:
 					for peak2 in peak_candidates:
-						if n.abs(peak2[0]- peak[0])> 5:
+						if n.abs(peak2[0]- peak[0])> 30:
 							for l in em_lines:
 								test_z_2 = peak2[0]/l -1.0
-								if test_z_2 > z[i]+ 0.05 and abs(test_z-test_z_2)> 0.05:
+								if test_z_2 > z[i]+ 0.05 and abs(peak[2]-test_z_2)> 0.05:
 									quad_SN_2 = 0.0
 									for w in em_lines:
-										center_bin = wave2bin(w*(1+test_z_2),c0,c1,Nmax)
-										SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z_2), zline, fiberid[i], z[i], int(mjd), int(plate))))
-										quad_SN_2 += max(SN_line*(SN_line>0))**2
+										if w*(1+test_z_2) < 9500:
+											center_bin = wave2bin(w*(1+test_z_2),c0,c1,Nmax)
+											SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z_2), zline, fiberid[i], z[i], int(mjd), int(plate),mask_width_Jackpot)))
+											quad_SN_2 += max(SN_line*(SN_line>0))**2
 									quad_SN_2 = n.sqrt(quad_SN_2)
 									if quad_SN_2 > peak[5] + 6:
 										peak[4] = quad_SN_2
@@ -586,39 +574,14 @@ for j in n.arange(len(plate_mjd)):
 					reduced_flux = reduced_flux[i,:],show = plot_show, HB_wave = HB_wave , params_beta=params_beta, line_coeff =line_coeff)
 
 		elif Jackpot == True:
+			k = 0
 			for peak in peak_candidates:				
 				
 				fileJ = open(topdir + savedir +  '/candidates_Jackpot.txt','a')
 				fileJ.write('\n' + str([RA[i], DEC[i], int(plate), int(mjd), fiberid[i], z[i], peak[2],peak[3],peak[4],peak[5],peak[6],spectroflux[i,1], spectroflux[i,3]]))
 				fileJ.close()
-
-				fontP = FontProperties()
-				fontP.set_size('medium')	
-				plt.suptitle(SDSSname(RA[i],DEC[i])+'\n'+'RA='+str(RA[i])+', Dec='+str(DEC[i]) +', $z_{QSO}='+'{:03.3}'.format(z[i])+ '$')
-				
-				gs = gridspec.GridSpec(1,4)
-				p1 = plt.subplot(gs[0,:4])
-				
-				smoothed_flux = n.array([n.mean(flux[i,ii-2:ii+3]) for ii in range(len(flux[0,:])) if (ii>4 and ii<len(flux[0,:])-4)])
-		
-				p1.plot(wave[5:-4], smoothed_flux, 'k', label = 'BOSS Flux', drawstyle='steps-mid')
-				#p1.plot(wave,  flux[i,:], 'k', label = 'BOSS Flux')
-				p1.plot(wave, synflux[i,:], 'r', label = 'PCA fit')
-				box = p1.get_position()
-				p1.set_position([box.x0,box.y0+0.02,box.width*0.9,box.height])
-				p1.set_ylim(n.min(synflux[i,:])-3, n.max(synflux[i,:])+3)
-				p1.vlines(x = em_lines*(1+peak[2]),ymin= -100,ymax= 100,colors= 'g',linestyles='dashed')
-				p1.vlines(x = em_lines*(1+peak[3]),ymin= -100,ymax= 100,colors= 'b',linestyles='dashed')
-
-				p1.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1, prop=fontP)
-				p1.set_xlim(3500,10500)
-				plt.ylabel('Flux [$10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$')
-				
-
-				make_sure_path_exists(topdir + savedir +'/plots/')
-				#plt.show()
-				plt.savefig(topdir + savedir +'/plots/'+SDSSname(RA[i],DEC[i])+ '-' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-'+str(k+1) +'.png')
-				plt.close()
+				k += 1
+				plot_Jackpot(RA= RA[i],DEC=DEC[i],plate =int(plate), mjd=int(mjd), fiberid=fiberid[i], z=z[i],wave=wave, flux =flux[i,:], synflux = synflux[i,:],topdir=topdir,savedir=savedir ,peak = peak, show = plot_show, counter = k)
 	
 		elif searchLyA==True and QSOlens==True and Jackpot == False:
 

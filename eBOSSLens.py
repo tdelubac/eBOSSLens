@@ -7,7 +7,7 @@
 # To change list of plate to analyse: line 34
 
 # show graphs or not? (do not use show on PC clusters!!!)
-plot_show = False
+plot_show =False
 
 # Imports
 import numpy as n
@@ -36,21 +36,21 @@ from utils_Gal import *
 #-----------------------------------------------------------------------------------------------------
 # Operation mode
 searchLyA = False
-QSOlens = False
+QSOlens = True
 paper = True
-Jackpot = True
+Jackpot = False
 # BOSS or eBOSS data?
 BOSS = True
-BOSS_v5_7_2 = True
+BOSS_v5_7_2 =False
 eBOSS = False
 
 # Max chi2 for gaussian/ doublet fitting OII
-max_chi2 = 4.0
+max_chi2 = 100
 #Set topdir,savedir:
 topdir = '..'
-savedir = '/Jackpot/BOSS_v5_7_2/'
+savedir = '/FinalPaper/'
 #-------- give file in [plate mjd] format of plates you want to inspect -----------------
-plates_list = 'list_v5_7_2.txt'
+plates_list = 'list_QSOGal.txt'
 #-------- give file in [plate mjd fiber] format of specific objects you want to inspect -----------------
 inspect_candidates = False
 candidates = n.loadtxt( './tim_selec.txt')
@@ -59,8 +59,6 @@ candidates = n.loadtxt( './tim_selec.txt')
 plate_mjd = [line.strip().split() for line in open(topdir + savedir + plates_list)]
 plate = 0
 fiberid = [0]
-
-
 
 #Set of emission lines used for lensed galaxy detection: OII, Hb, OIII, OIII, Ha
 em_lines = n.array([3726.5,4861.325,4958.911,5006.843,6562.801])
@@ -76,8 +74,6 @@ counter2 = 0
 counter3 = 0
 counter4 = 0
 
-
-
 #Loop over plates
 for j in n.arange(len(plate_mjd)):
 	# Loading the data --------------------------------------------------------------------------------
@@ -86,22 +82,22 @@ for j in n.arange(len(plate_mjd)):
 	plate = plate_mjd[j][0]
 
 	c0,c1,wave,flux,ivar,vdisp, synflux,fiberid, RA, DEC, obj_id, obj_class, \
-		obj_type, z, zwarning,z_err, spectroflux, rchi2, rchi2diff, zline,npix = load_data(mjd = mjd, plate=plate, BOSS = True, eBOSS = False, logdir = '../../../../../SCRATCH/', BOSS_version = BOSS_v5_7_2 )
+		obj_type, z, zwarning,z_err, spectroflux, rchi2, rchi2diff, zline,npix = load_data(mjd = mjd, plate=plate, BOSS = BOSS, eBOSS = eBOSS, logdir = '../../../../../SCRATCH/', BOSS_version = BOSS_v5_7_2 )
 	#-----------------------------------------------------------------------------------------------------
 	
 
 	reduced_flux = n.array(flux - synflux)
-	sqrtivar=copy.deepcopy(ivar)
 	
 	Nmax = len(flux[0,:])
 
-	#Mask BOSS spectra glitches
+	#Mask BOSS spectra glitches + Sky
 	ivar[:,wave2bin(5570,c0,c1,Nmax): wave2bin(5590,c0,c1,Nmax)] = 0
 	ivar[:,wave2bin(5880,c0,c1,Nmax): wave2bin(5905,c0,c1,Nmax)] = 0
-
+	ivar[:,wave2bin(6285,c0,c1,Nmax): wave2bin(6315,c0,c1,Nmax)] = 0
+	ivar[:,wave2bin(6348,c0,c1,Nmax): wave2bin(6378,c0,c1,Nmax)] = 0
 	
 	#------------- Loop over fibers------------------------------------------------------------------
-	for i in  n.arange(len(flux[:,0])):
+	for i in  n.arange(49,len(flux[:,0])):
 	#Using above file, allow to look only at certain plate-mjd-fiber 
 		
 		candidates_list = [x for x in candidates if (int(x[0])==int(plate) and int(x[1])==int(mjd) and  int(x[2])== int(fiberid[i]))]
@@ -134,20 +130,20 @@ for j in n.arange(len(plate_mjd)):
 			
 			M_BH = 10**(6.91 + n.log10(n.sqrt(5100*l_times_luminosity/1e44)*(FWHM/1000)**2)) # Masses solaires
 			sigma_host = 200*10**((n.log10(M_BH) - 7.92)/3.93) ### km s-1
+		
 
-			ivar = mask_QSO(ivar=ivar,z=z[i], l_width = l_width, c0 = c0 , c1=c1,Nmax=Nmax)	
+			ivar[i,:] = mask_QSO(ivar=ivar[i,:],z=z[i], l_width = l_width, c0 = c0 , c1=c1,Nmax=Nmax)	
 			
 		else:
 			if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
 				continue
-				
+		
 		peaks = []
 		peak_number = len(peaks)
 		doublet = None
 		
-		counter1 = counter1 +1;
-		
-		sqrtivar[i,:] = n.sqrt(ivar[i,:])
+		counter1 = counter1 +1
+	
 		
 		### Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks
 		if searchLyA == True:
@@ -168,7 +164,7 @@ for j in n.arange(len(plate_mjd)):
 
 
 		if searchLyA == True and QSOlens == True:
-			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  (l_LyA*(1+z[i])+300)<x0<8000)])
+			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  (l_LyA*(1+z[i])+300)<x0<9500)])
 		elif searchLyA == False and QSOlens == True:
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(wave,SN) if (test>6.0 and  (l_LyA*(1+z[i])+300)<x0<9500)])
 		elif searchLyA == True and QSOlens == False:
@@ -183,8 +179,6 @@ for j in n.arange(len(plate_mjd)):
 		#(Legend key:) wavelength(x0) chisq_doublet amp_gauss var_gauss S/N chisq_doublet amp1_doublet amp2_doublet var_doublet x1 x2
 		#Keep only center of candidate peaks
 		k = 0
-			
-
 
 		if searchLyA == False and QSOlens == False:
 			while (k < (len(peak_candidates)-1)):
@@ -215,7 +209,7 @@ for j in n.arange(len(plate_mjd)):
 
 		chisq_skew = 10000
 		chi2_width = 10000	
-	
+
 		#### check hits are not from foreground galaxy or badly fitted QSO
 		if QSOlens and searchLyA:
 			foreground_z = False
@@ -227,7 +221,6 @@ for j in n.arange(len(plate_mjd)):
 							foreground_z = True
 			if foreground_z:
 				continue
-
 
 		#Search for suitable peak candidates
 		for peak in peak_candidates:
@@ -248,14 +241,14 @@ for j in n.arange(len(plate_mjd)):
 				cj1_new = n.sum(new_flux*kernel(int(len(window)/2),width,NormGauss,len(new_flux))*ivar[i,window])
 				cj2_new = n.sum(ivar[i,window]*kernel(int(len(window)/2),width,NormGauss,len(window))**2)
 				SN_fitted = cj1_new/n.sqrt(cj2_new)
-				if  searchLyA and (SN_fitted < 0):
+				if  searchLyA and (SN_fitted < 6):
 					continue
-				elif searchLyA and SN_fitted > 0: 
+				elif searchLyA and SN_fitted > 6: 
 					peak[19] = SN_fitted 
 					reduced_flux[i,window]=new_flux
-				elif searchLyA == False and SN_fitted < 4:
+				elif searchLyA == False and SN_fitted < 6:
 					continue
-				elif searchLyA == False and SN_fitted > 4:
+				elif searchLyA == False and SN_fitted > 6:
 					peak[3] = SN_fitted 
 					reduced_flux[i,window]=new_flux
 
@@ -484,25 +477,22 @@ for j in n.arange(len(plate_mjd)):
 			peak_candidates = sorted(peak_candidates, key=lambda peak: peak[5])
 			if len(peak_candidates) > 3:
 				peak_candidates = peak_candidates[0:3]
-		
 		if len(peak_candidates) == 0:
 			continue	
 
-		
 		# Check that at least 1 candidate is below 9200 Angstrom cut, if not, go to next fiber
 		below_9200 = False	
 		for peak in peak_candidates:
-			if peak[0] < 9200:
+			if peak[0] < 8500:
 				below_9200 = True
 		if below_9200 == False:
 			continue	
 		
 		counter4 = counter4+1;
-
+		
 		#Try to infer background redshift
 		detection = False
 		score = 0.0
-
 
 		if (doublet == True and searchLyA == False and QSOlens==False and Jackpot == False):
 
@@ -660,7 +650,7 @@ for j in n.arange(len(plate_mjd)):
 									params_skew[0],params_skew[1],params_skew[2],params_skew[3],params_skew[4],params_skew[5],params_skew[6],params_skew[7],peak[15],peak[16],peak[17],peak[18], skewness, S, Sw, a_lambda,rchi2[i],peak[19],spectroflux[i,1], spectroflux[i,3],lyA_flux]))
 					# Make the graph
 					plot_QSOLAE(RA= RA[i],DEC = DEC[i],z=z[i],flux=flux[i,:],wave=wave,synflux=synflux[i,:],x0= x0, ivar = ivar[i,:], reduced_flux = reduced_flux[i,:],window=window,peak =peak,
-						params = params,params_skew=params_skew, topdir = topdir, savedir = savedir, show = plot_show, paper = paper, QSOlens = QSOlens)
+						params = params,params_skew=params_skew, topdir = topdir, savedir = savedir, n_peak = n_peak, plate = int(plate), mjd = int(mjd), fiberid = fiberid[i],c0=c0,c1=c1,Nmax=Nmax, show = plot_show, paper = paper, QSOlens = QSOlens)
 					
 				n_peak = n_peak +1
 			fileLyA.close()

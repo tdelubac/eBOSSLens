@@ -704,7 +704,7 @@ for j in n.arange(len(plate_mjd)):
 		
 		#Graphs OII doublet
 
-		if ((peak_number>1 or doublet==True) and below_9200 and detection and searchLyA==False and QSOlens==False and Jackpot == False):
+		if ((peak_number>1 or doublet==True) and below_9500 and detection and searchLyA==False and QSOlens==False and Jackpot == False):
 
 			#Computing total fit of all peaks
 			fit=0

@@ -1,4 +1,5 @@
 import numpy as np
+import numpy as np
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
@@ -107,8 +108,8 @@ def QSO_compute_FWHM(ivar,flux,wave,c0,c1,Nmax,z,l_width):
 		HB_wave_r = wave[wave2bin(4812*(1+z),c0,c1,Nmax):wave2bin(4912*(1+z),c0,c1,Nmax)]
 		HB_weight_r = np.sqrt(ivar[wave2bin(4812*(1+z),c0,c1,Nmax):wave2bin(4912*(1+z),c0,c1,Nmax)])
 		res =  minimize(chi2Lorenz,[4862*(1+z),10,30],args=(HB_wave_r, HB_flux_r-line_coeff[0]*HB_wave_r -line_coeff[1],HB_weight_r), method='SLSQP', bounds = [(4862*(1+z)-5,4862*(1+z)+5),(1,100),(1,10000)])
-		params_beta = res.x
-		FWHM = (c/1000)*2*params_beta[1]/((1+z)*l_Hb) # km s-1
+		params = res.x
+		FWHM = (c/1000)*2*params[1]/((1+z)*l_Hb) # km s-1
 		average_flux = np.mean(flux[wave2bin(5100-40,c0,c1,Nmax):wave2bin(5100+40,c0,c1,Nmax)])
 		l_times_luminosity = 5100*(1e-17)*average_flux*4*np.pi*(100*parsec*1e6*(c/H0)*quad(x12,0.0,z)[0]*(1+z))**2
 	elif 6.2>z>1.5:
@@ -124,16 +125,18 @@ def QSO_compute_FWHM(ivar,flux,wave,c0,c1,Nmax,z,l_width):
 		CIV_wave_r = wave[wave2bin(1500*(1+z),c0,c1,Nmax):wave2bin(1600*(1+z),c0,c1,Nmax)]
 		CIV_weight_r = np.sqrt(ivar[wave2bin(1500*(1+z),c0,c1,Nmax):wave2bin(1600*(1+z),c0,c1,Nmax)])
 		res =  minimize(chi2Lorenz,[1549*(1+z),10,10],args=(CIV_wave_r, CIV_flux_r-line_coeff[0]*CIV_wave_r -line_coeff[1],CIV_weight_r), method='SLSQP', bounds = [(1549*(1+z)-5,1549*(1+z)+5),(1,100),(1,10000)])
-		params_CIV = res.x
+		params = res.x
 		average_flux = 1350*np.mean(flux[wave2bin(1350-40,c0,c1,Nmax):wave2bin(1350+40,c0,c1,Nmax)])
-		FWHM =  (c/1000)*2*params_CIV[1]/((1+z)*l_CIV) #km s-1
+		FWHM =  (c/1000)*2*params[1]/((1+z)*l_CIV) #km s-1
 		l_times_luminosity = 1350*(1e-17)*average_flux*4*np.pi*(100*parsec*1e6*(c/H0)*quad(x12,0.0,z)[0]*(1+z))**2
 	else:
 		HB_wave = 0.0
 		FWHM = 0.0
 		l_times_luminosity = 0.0
+		params = [0,0,0,0,0,0]
+		line_coeff = None
 		
-	return FWHM, l_times_luminosity, HB_wave
+	return FWHM, l_times_luminosity, HB_wave, params, line_coeff
 
 def plot_QSOLAE(RA,DEC,z,flux,wave,synflux,x0,ivar, reduced_flux,window,peak,params,params_skew, topdir, savedir, n_peak, plate, mjd, fiberid,c0,c1,Nmax, show = False, paper=True, QSOlens = True):
 	if show ==False:
@@ -257,7 +260,9 @@ def plot_QSOLAE(RA,DEC,z,flux,wave,synflux,x0,ivar, reduced_flux,window,peak,par
 		plt.close()
 		
 	
-def plot_QSOGal(RA,DEC,z, z_backgal,flux,wave,synflux,ivar, reduced_flux,show = False, HB_wave = 0.0, params_beta=[0,0,0], line_coeff = [0,0]):
+def plot_QSOGal(k,RA,DEC,plate, mjd, fiberid,z, z_backgal,flux,wave,synflux,ivar, reduced_flux,c0,c1,Nmax,topdir, savedir,show = False, HB_wave = 0.0, params_beta=[0,0,0], line_coeff = [0,0]):
+	
+	em_lines = np.array([3726.5,4861.325,4958.911,5006.843,6562.801])
 	if show ==False:
 		mpl.use('Agg')
 	fontP = FontProperties()
@@ -267,17 +272,17 @@ def plot_QSOGal(RA,DEC,z, z_backgal,flux,wave,synflux,ivar, reduced_flux,show = 
 	gs = gridspec.GridSpec(2,4)
 	p1 = plt.subplot(gs[0,:4])
 	
-	smoothed_flux = n.array([n.mean(flux[ii-2:ii+3]) for ii in range(len(flux[:])) if (ii>4 and ii<len(flux[:])-4)])
+	smoothed_flux = np.array([np.mean(flux[ii-2:ii+3]) for ii in range(len(flux[:])) if (ii>4 and ii<len(flux[:])-4)])
 			
 	p1.plot(wave[5:-4], smoothed_flux, 'k', label = 'BOSS Flux', drawstyle='steps-mid')
 	#p1.plot(wave,  flux[:], 'k', label = 'BOSS Flux')
 	p1.plot(wave, synflux[:], 'r', label = 'PCA fit')
-	if z[i]<1:
+	if z<1 and show == True:
 		p1.plot(HB_wave, lorentz(HB_wave, params_beta[0],params_beta[1],params_beta[2]) + HB_wave*line_coeff[0] + line_coeff[1], '--g')
 	box = p1.get_position()
 
 	p1.set_position([box.x0,box.y0+0.02,box.width*0.9,box.height])
-	p1.set_ylim(n.min(synflux[:])-3, n.max(synflux[:])+3)
+	p1.set_ylim(np.min(synflux[:])-3, np.max(synflux[:])+3)
 	p1.vlines(x = em_lines*(1+z_backgal),ymin= -100,ymax= 100,colors= 'g',linestyles='dashed')
 	p1.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1, prop=fontP)
 	p1.set_xlim(3500,10500)
@@ -289,7 +294,7 @@ def plot_QSOGal(RA,DEC,z, z_backgal,flux,wave,synflux,ivar, reduced_flux,show = 
 	p2.plot(wave[wave2bin((1+z_backgal)*(3727-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(3727+10),c0,c1,Nmax)],loc_flux,'k', label = 'OII', drawstyle='steps-mid')
 	p2.plot(wave[wave2bin((1+z_backgal)*(3727-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(3727+10),c0,c1,Nmax)],synflux[wave2bin((1+z_backgal)*(3727-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(3727+10),c0,c1,Nmax)],'r', label = 'OII', drawstyle='steps-mid')
 	if loc_flux != []:
-		p2.set_ylim(n.min(loc_flux)-1,n.max(loc_flux)+1)
+		p2.set_ylim(np.min(loc_flux)-1,np.max(loc_flux)+1)
 	plt.title('[OII] 3727')
 	p2.set_xlim((1+z_backgal)*(3727-10),(1+z_backgal)*(3727+10))
 	x1 = int((1+z_backgal)*3727)
@@ -306,15 +311,15 @@ def plot_QSOGal(RA,DEC,z, z_backgal,flux,wave,synflux,ivar, reduced_flux,show = 
 	p3.plot(wave[wave2bin((1+z_backgal)*(4861-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(5007+10),c0,c1,Nmax)],loc_flux,'k', label = 'OIII, Hb', drawstyle='steps-mid')
 	p3.plot(wave[wave2bin((1+z_backgal)*(4861-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(5007+10),c0,c1,Nmax)],synflux[wave2bin((1+z_backgal)*(4861-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(5007+10),c0,c1,Nmax)],'r', label = 'OIII, Hb', drawstyle='steps-mid')
 	if loc_flux != []:
-		p3.set_ylim(n.min(loc_flux)-1,n.max(loc_flux)+1)
+		p3.set_ylim(np.min(loc_flux)-1,np.max(loc_flux)+1)
 	plt.title(r'H$\beta$,[OIII] 4959, [OIII] 5007')
 	plt.xlabel(r'Observed wavelength [$\AA$]')
 	p3.set_xlim((1+z_backgal)*(4861-10),(1+z_backgal)*(5007+10))
 	x1 = int((1+z_backgal)*4862/10.)*10
-	if x1<8000:
-		plt.xticks([x1,x1+40,x1+80,x1+120, x1+160,x1+200])
+	if x1<7600:
+		plt.xticks([x1,x1+50 , x1+100 ,  x1 +150 ,x1+200])
 	else:
-		plt.xticks([x1,x1+40,x1+80,x1+120, x1+160,x1+200,x1+240])
+		plt.xticks([x1,x1+50 , x1+100 ,  x1 +150 ,x1+200, x1+ 250])
 	
 	box = p3.get_position()
 	p3.set_position([box.x0+0.02,box.y0,box.width*0.9,box.height])
@@ -326,17 +331,16 @@ def plot_QSOGal(RA,DEC,z, z_backgal,flux,wave,synflux,ivar, reduced_flux,show = 
 		p4.plot(wave[wave2bin((1+z_backgal)*(6562-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(6562+10),c0,c1,Nmax)],loc_flux,'k', label = 'Ha', drawstyle='steps-mid')
 		p4.plot(wave[wave2bin((1+z_backgal)*(6562-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(6562+10),c0,c1,Nmax)],synflux[wave2bin((1+z_backgal)*(6562-10),c0,c1,Nmax) :wave2bin((1+z_backgal)*(6562+10),c0,c1,Nmax)],'r', label = 'Ha', drawstyle='steps-mid')
 		if loc_flux != []:
-			p4.set_ylim(n.min(loc_flux)-1,n.max(loc_flux)+1)
+			p4.set_ylim(np.min(loc_flux)-1,np.max(loc_flux)+1)
 		plt.title(r'H$\alpha$')
 		p4.set_xlim((1+z_backgal)*(6562-10),(1+z_backgal)*(6562+10))
 		x1 = int((1+z_backgal)*6562)
 		if x1 < 9900:
-			plt.xticks([x1-10,x1,x1+10])
+			plt.xticks([x1-10,x1,x1+10], [str(x1-10),str(x1),str(x1+10)])
 		else:
-			plt.xticks([x1-5,x1+5])
-	
+			plt.xticks([x1-10,x1,x1+10], [str(x1-10),'',str(x1+10)])
 	make_sure_path_exists(topdir + savedir +'/plots/')
-	plt.savefig(topdir + savedir +'/plots/'+SDSSname(RA,DEC)+ '-' + str(plate) + '-' + str(mjd) + '-' + str(fiberid[i]) + '-'+str(k+1) +'.png')
+	plt.savefig(topdir + savedir +'/plots/'+SDSSname(RA,DEC)+ '-' + str(plate) + '-' + str(mjd) + '-' + str(fiberid) + '-'+str(k+1) +'.png')
 	if show:
 		plt.show()
 	else:

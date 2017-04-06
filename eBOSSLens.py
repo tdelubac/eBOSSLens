@@ -126,7 +126,7 @@ for j in n.arange(len(plate_mjd)):
 
 			l_width = 15
 			### Before masking, compute the FWHM of CIV or HBeta depending on redshift:
-			FWHM,l_times_luminosity, HB_wave = QSO_compute_FWHM(ivar = ivar[i,:],flux = flux[i,:], wave = wave,c0=c0,c1=c1,Nmax=Nmax,z =z[i],l_width = l_width)
+			FWHM,l_times_luminosity, HB_wave, params_beta, line_coeff = QSO_compute_FWHM(ivar = ivar[i,:],flux = flux[i,:], wave = wave,c0=c0,c1=c1,Nmax=Nmax,z =z[i],l_width = l_width)
 			
 			M_BH = 10**(6.91 + n.log10(n.sqrt(5100*l_times_luminosity/1e44)*(FWHM/1000)**2)) # Masses solaires
 			sigma_host = 200*10**((n.log10(M_BH) - 7.92)/3.93) ### km s-1
@@ -559,10 +559,18 @@ for j in n.arange(len(plate_mjd)):
 				fileQSO = open(topdir + savedir +  '/candidates_QSO.txt','a')
 				fileQSO.write('\n' + str([RA[i], DEC[i], int(plate), int(mjd), fiberid[i], z[i], peak[0],peak[4],peak[5],peak[6],spectroflux[i,1], spectroflux[i,3], OII_flux, OIII_flux ]))
 				fileQSO.close()
-				
-				plot_QSOGal(RA = RA[i],DEC= DEC[i],z=z[i], z_backgal= z_backgal,flux=flux[i,:],wave=wave,synflux=synflux[i,:],ivar= ivar[i,:], \
-					reduced_flux = reduced_flux[i,:],show = plot_show, HB_wave = HB_wave , params_beta=params_beta, line_coeff =line_coeff)
 
+				
+				plot_QSOGal(k=k,RA = RA[i],DEC= DEC[i],plate = int(plate), mjd = int(mjd), fiberid = fiberid[i],z=z[i], z_backgal= z_backgal,flux=flux[i,:],wave=wave,synflux=synflux[i,:],ivar= ivar[i,:], \
+					reduced_flux = reduced_flux[i,:], c0=c0,c1=c1,Nmax=Nmax,show = plot_show,topdir=topdir, savedir=savedir, HB_wave = HB_wave , params_beta=params_beta, line_coeff =line_coeff)
+				# plot with +-1 AA for paper
+				if paper:
+					plot_QSOGal(k=k+len(peak_candidates),RA = RA[i],DEC= DEC[i],plate = int(plate), mjd = int(mjd), fiberid = fiberid[i],z=z[i], z_backgal= z_backgal+0.0005,flux=flux[i,:],wave=wave,synflux=synflux[i,:],ivar= ivar[i,:], \
+					reduced_flux = reduced_flux[i,:], c0=c0,c1=c1,Nmax=Nmax,show = plot_show,topdir=topdir, savedir=savedir, HB_wave = HB_wave , params_beta=params_beta, line_coeff =line_coeff)
+					plot_QSOGal(k=k+len(peak_candidates)+1,RA = RA[i],DEC= DEC[i],plate = int(plate), mjd = int(mjd), fiberid = fiberid[i],z=z[i], z_backgal= z_backgal-0.0005,flux=flux[i,:],wave=wave,synflux=synflux[i,:],ivar= ivar[i,:], \
+					reduced_flux = reduced_flux[i,:], c0=c0,c1=c1,Nmax=Nmax,show = plot_show,topdir=topdir, savedir=savedir, HB_wave = HB_wave , params_beta=params_beta, line_coeff =line_coeff)
+
+				
 		elif Jackpot == True:
 			k = 0
 			for peak in peak_candidates:				

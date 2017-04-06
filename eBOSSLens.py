@@ -97,7 +97,7 @@ for j in n.arange(len(plate_mjd)):
 	ivar[:,wave2bin(6348,c0,c1,Nmax): wave2bin(6378,c0,c1,Nmax)] = 0
 	
 	#------------- Loop over fibers------------------------------------------------------------------
-	for i in  n.arange(49,len(flux[:,0])):
+	for i in  n.arange(0,len(flux[:,0])):
 	#Using above file, allow to look only at certain plate-mjd-fiber 
 		
 		candidates_list = [x for x in candidates if (int(x[0])==int(plate) and int(x[1])==int(mjd) and  int(x[2])== int(fiberid[i]))]
@@ -341,17 +341,12 @@ for j in n.arange(len(plate_mjd)):
 				peak[15] = chisq
 				
 			#Doublet OII: Gaussian fit around x_0
-
 			if (x0 > 3727.0*(1+z[i]) or searchLyA==True and QSOlens == False): 
-
 
 				res2 = minimize(chi2D,[1.0,5,1.0,x0-1.5,x0+1.5],args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(0.1,5),(1,8),(0.1,5),(x0-7,x0),(x0,x0+7)])
 				params2 = res2.x
 				chisq2 = res2.fun
-
-
 				if  (searchLyA == False and 0.5*x0/3726.5<abs(params2[3]-params2[4])<2.1*x0/3726.5 and not(chisq2 > max_chi2)):					
-
 					peak[5] = chisq2
 					peak[6] = params2[0] #amp1
 					peak[7] = params2[2] #amp2
@@ -364,7 +359,6 @@ for j in n.arange(len(plate_mjd)):
 					peak[3] = params2[0] #amp1
 					peak[4] = params2[2] #amp2
 					peak[5] = params2[1] #var
-
 					chi2_width = chisq2
 					peak[16] = chisq2
 				elif searchLyA:
@@ -414,7 +408,6 @@ for j in n.arange(len(plate_mjd)):
 					peak[13] = params_skew_c[6] #a2
 					peak[14] = params_skew_c[7] #eps2
 					if chisq_skew_c < chi2_width:
-
 						chi2_width = chisq_skew_c
 						
 				peak[17] = chisq_skew	
@@ -425,7 +418,6 @@ for j in n.arange(len(plate_mjd)):
 					reduced_flux[i,window]= new_flux + fit_QSO(wave[window])
 				
 		counter2 = counter2 + 1;					
-
 
 		if searchLyA == False and QSOlens == False and Jackpot == False:
 
@@ -481,11 +473,11 @@ for j in n.arange(len(plate_mjd)):
 			continue	
 
 		# Check that at least 1 candidate is below 9200 Angstrom cut, if not, go to next fiber
-		below_9200 = False	
+		below_9500 = False	
 		for peak in peak_candidates:
-			if peak[0] < 8500:
-				below_9200 = True
-		if below_9200 == False:
+			if peak[0] < 9500:
+				below_9500 = True
+		if below_9500 == False:
 			continue	
 		
 		counter4 = counter4+1;
@@ -569,8 +561,7 @@ for j in n.arange(len(plate_mjd)):
 					reduced_flux = reduced_flux[i,:], c0=c0,c1=c1,Nmax=Nmax,show = plot_show,topdir=topdir, savedir=savedir, HB_wave = HB_wave , params_beta=params_beta, line_coeff =line_coeff)
 					plot_QSOGal(k=k+len(peak_candidates)+1,RA = RA[i],DEC= DEC[i],plate = int(plate), mjd = int(mjd), fiberid = fiberid[i],z=z[i], z_backgal= z_backgal-0.0005,flux=flux[i,:],wave=wave,synflux=synflux[i,:],ivar= ivar[i,:], \
 					reduced_flux = reduced_flux[i,:], c0=c0,c1=c1,Nmax=Nmax,show = plot_show,topdir=topdir, savedir=savedir, HB_wave = HB_wave , params_beta=params_beta, line_coeff =line_coeff)
-
-				
+	
 		elif Jackpot == True:
 			k = 0
 			for peak in peak_candidates:				

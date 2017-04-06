@@ -57,6 +57,7 @@ def plot_GalaxyLens(doublet,RA,DEC,plate,fiberid,mjd,z,z_err,obj_class,wave, red
 		else:
 			plt.close()
 	return
+
 	
 def plot_Jackpot(RA,DEC,plate,fiberid,mjd,z,wave, flux, synflux,topdir,savedir,peak, show ,counter ): 
 	em_lines = np.array([3726.5,4861.325,4958.911,5006.843,6562.801])
@@ -91,3 +92,4 @@ def plot_Jackpot(RA,DEC,plate,fiberid,mjd,z,wave, flux, synflux,topdir,savedir,p
 	#plt.show()
 	plt.savefig(topdir + savedir +'/plots/'+SDSSname(RA,DEC)+ '-' + str(plate) + '-' + str(mjd) + '-' + str(fiberid) + '-'+str(counter) +'.png')
 	plt.close()
+

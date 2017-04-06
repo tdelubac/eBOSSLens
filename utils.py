@@ -53,8 +53,10 @@ def chi2skew2(params, xdata, ydata, ivar):
 	return np.sum(ivar*(ydata - skew(x=xdata,A = params[0], w=params[1], a=params[2], eps = params[3]) - skew(x=xdata, A = params[4], w = params[5], a=params[6], eps=params[7]))**2)/(len(xdata)-len(params)-1)
 
 # Check if x0 is near any emission line redshifted by z
+
 def nearline(x0, zline, fiberid, z, mjd, plate, width = 10):
 	match1 = np.logical_and(abs(zline['linewave']*(1+z) -x0) < width, zline['lineew']/zline['lineew_err'] > 6)
+
 	match2 = np.logical_and(zline['fiberid']==fiberid,zline['mjd']==int(mjd))
 	match3 = np.logical_and(zline['plate']==int(plate), zline['lineew_err']>0)
 	match4 = np.logical_and(match1,np.logical_and(match2,match3))
@@ -158,6 +160,7 @@ def make_sure_path_exists(path):
         if exception.errno != errno.EEXIST:
             raise
 #-----------------------------------------------------------------------------------------------------
+
 
 def load_data(mjd, plate, BOSS = True, eBOSS = False, logdir = '../../../../../SCRATCH/' , BOSS_version = False):
 	if BOSS == True and BOSS_version == False:

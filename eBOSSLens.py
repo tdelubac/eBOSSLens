@@ -6,17 +6,19 @@
 # 'Paper' mode removes intermediate steps plots useful for analysis but irrelevant for publication
 # To change list of plate to analyse: line 34
 
+
 # show graphs or not? (do not use show on PC clusters!!!)
 plot_show =False
-
 # Imports
 import numpy as n
 import pyfits as pf
 import matplotlib as mpl
 
+
 if plot_show == False:
 	mpl.use('Agg')
 	
+
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
 import math
@@ -36,11 +38,16 @@ from utils_Gal import *
 #-----------------------------------------------------------------------------------------------------
 # Operation mode
 searchLyA = False
-QSOlens = True
+
+
+
+QSOlens = False
+
 paper = True
 Jackpot = False
 # BOSS or eBOSS data?
 BOSS = True
+
 BOSS_v5_7_2 =False
 eBOSS = False
 
@@ -54,6 +61,7 @@ plates_list = 'list_QSOGal.txt'
 #-------- give file in [plate mjd fiber] format of specific objects you want to inspect -----------------
 inspect_candidates = False
 candidates = n.loadtxt( './tim_selec.txt')
+
 #----------------------------------------------------------------------------------------------------
 #------------------------------------ INITIALIZATION ------------------------------------------------
 plate_mjd = [line.strip().split() for line in open(topdir + savedir + plates_list)]
@@ -82,11 +90,14 @@ for j in n.arange(len(plate_mjd)):
 	plate = plate_mjd[j][0]
 
 	c0,c1,wave,flux,ivar,vdisp, synflux,fiberid, RA, DEC, obj_id, obj_class, \
+
 		obj_type, z, zwarning,z_err, spectroflux, rchi2, rchi2diff, zline,npix = load_data(mjd = mjd, plate=plate, BOSS = BOSS, eBOSS = eBOSS, logdir = '../../../../../SCRATCH/', BOSS_version = BOSS_v5_7_2 )
+
 	#-----------------------------------------------------------------------------------------------------
 	
 
 	reduced_flux = n.array(flux - synflux)
+
 	
 	Nmax = len(flux[0,:])
 
@@ -104,6 +115,7 @@ for j in n.arange(len(plate_mjd)):
 		if len(candidates_list)== 0 and inspect_candidates == True :
 			continue
 		
+
 		if QSOlens:
 			
 			redshift_warning = False
@@ -126,6 +138,7 @@ for j in n.arange(len(plate_mjd)):
 
 			l_width = 15
 			### Before masking, compute the FWHM of CIV or HBeta depending on redshift:
+
 			FWHM,l_times_luminosity, HB_wave, params_beta, line_coeff = QSO_compute_FWHM(ivar = ivar[i,:],flux = flux[i,:], wave = wave,c0=c0,c1=c1,Nmax=Nmax,z =z[i],l_width = l_width)
 			
 			M_BH = 10**(6.91 + n.log10(n.sqrt(5100*l_times_luminosity/1e44)*(FWHM/1000)**2)) # Masses solaires
@@ -133,17 +146,19 @@ for j in n.arange(len(plate_mjd)):
 		
 
 			ivar[i,:] = mask_QSO(ivar=ivar[i,:],z=z[i], l_width = l_width, c0 = c0 , c1=c1,Nmax=Nmax)	
+
 			
 		else:
 			if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]): 
 				continue
-		
+
 		peaks = []
 		peak_number = len(peaks)
 		doublet = None
 		
+
 		counter1 = counter1 +1
-	
+
 		
 		### Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks
 		if searchLyA == True:
@@ -165,12 +180,15 @@ for j in n.arange(len(plate_mjd)):
 
 		if searchLyA == True and QSOlens == True:
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  (l_LyA*(1+z[i])+300)<x0<9500)])
+
 		elif searchLyA == False and QSOlens == True:
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(wave,SN) if (test>6.0 and  (l_LyA*(1+z[i])+300)<x0<9500)])
 		elif searchLyA == True and QSOlens == False:
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  3600<x0<4800)])
 		elif Jackpot == True:
+
 			# x0 z1 z2 Quad_SN2 SN0->Quad_SN1  free free
+
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(wave,SN) if test>8.0])
 		elif searchLyA == False and QSOlens == False:
 			peak_candidates = n.array([(x0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if test>6.0])
@@ -241,6 +259,7 @@ for j in n.arange(len(plate_mjd)):
 				cj1_new = n.sum(new_flux*kernel(int(len(window)/2),width,NormGauss,len(new_flux))*ivar[i,window])
 				cj2_new = n.sum(ivar[i,window]*kernel(int(len(window)/2),width,NormGauss,len(window))**2)
 				SN_fitted = cj1_new/n.sqrt(cj2_new)
+
 				if  searchLyA and (SN_fitted < 6):
 					continue
 				elif searchLyA and SN_fitted > 6: 
@@ -249,6 +268,7 @@ for j in n.arange(len(plate_mjd)):
 				elif searchLyA == False and SN_fitted < 6:
 					continue
 				elif searchLyA == False and SN_fitted > 6:
+
 					peak[3] = SN_fitted 
 					reduced_flux[i,window]=new_flux
 
@@ -272,9 +292,11 @@ for j in n.arange(len(plate_mjd)):
 				continue
 
 			### Special case: Jackpot lenses 
+
 			
 			mask_width_Jackpot = 50
 			
+
 			if Jackpot == True:
 
 				first_lens = False
@@ -283,12 +305,14 @@ for j in n.arange(len(plate_mjd)):
 				for l in em_lines:
 					test_z = peak[0]/l -1.0
 					if test_z > z[i]+0.05:
+
 						quad_SN_1 = peak[6]
 						for w in em_lines:
 							if w*(1+test_z) < 9500:
 								center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
 								SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z), zline, fiberid[i], z[i], int(mjd), int(plate), mask_width_Jackpot)))
 								quad_SN_1 += max(SN_line*(SN_line>0))**2
+
 						quad_SN_1 = n.sqrt(quad_SN_1)
 						if quad_SN_1 > peak[6] + 6:
 							peak[5] = quad_SN_1
@@ -296,6 +320,7 @@ for j in n.arange(len(plate_mjd)):
 							first_lens = True
 				if first_lens:
 					for peak2 in peak_candidates:
+
 						if n.abs(peak2[0]- peak[0])> 30:
 							for l in em_lines:
 								test_z_2 = peak2[0]/l -1.0
@@ -306,6 +331,7 @@ for j in n.arange(len(plate_mjd)):
 											center_bin = wave2bin(w*(1+test_z_2),c0,c1,Nmax)
 											SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z_2), zline, fiberid[i], z[i], int(mjd), int(plate),mask_width_Jackpot)))
 											quad_SN_2 += max(SN_line*(SN_line>0))**2
+
 									quad_SN_2 = n.sqrt(quad_SN_2)
 									if quad_SN_2 > peak[5] + 6:
 										peak[4] = quad_SN_2
@@ -341,12 +367,14 @@ for j in n.arange(len(plate_mjd)):
 				peak[15] = chisq
 				
 			#Doublet OII: Gaussian fit around x_0
+
 			if (x0 > 3727.0*(1+z[i]) or searchLyA==True and QSOlens == False): 
 
 				res2 = minimize(chi2D,[1.0,5,1.0,x0-1.5,x0+1.5],args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(0.1,5),(1,8),(0.1,5),(x0-7,x0),(x0,x0+7)])
 				params2 = res2.x
 				chisq2 = res2.fun
 				if  (searchLyA == False and 0.5*x0/3726.5<abs(params2[3]-params2[4])<2.1*x0/3726.5 and not(chisq2 > max_chi2)):					
+
 					peak[5] = chisq2
 					peak[6] = params2[0] #amp1
 					peak[7] = params2[2] #amp2
@@ -359,6 +387,7 @@ for j in n.arange(len(plate_mjd)):
 					peak[3] = params2[0] #amp1
 					peak[4] = params2[2] #amp2
 					peak[5] = params2[1] #var
+
 					chi2_width = chisq2
 					peak[16] = chisq2
 				elif searchLyA:
@@ -408,6 +437,7 @@ for j in n.arange(len(plate_mjd)):
 					peak[13] = params_skew_c[6] #a2
 					peak[14] = params_skew_c[7] #eps2
 					if chisq_skew_c < chi2_width:
+
 						chi2_width = chisq_skew_c
 						
 				peak[17] = chisq_skew	
@@ -469,6 +499,7 @@ for j in n.arange(len(plate_mjd)):
 			peak_candidates = sorted(peak_candidates, key=lambda peak: peak[5])
 			if len(peak_candidates) > 3:
 				peak_candidates = peak_candidates[0:3]
+
 		if len(peak_candidates) == 0:
 			continue	
 
@@ -482,6 +513,7 @@ for j in n.arange(len(plate_mjd)):
 		
 		counter4 = counter4+1;
 		
+
 		#Try to infer background redshift
 		detection = False
 		score = 0.0
@@ -544,6 +576,7 @@ for j in n.arange(len(plate_mjd)):
 						temp_fluxes_OII[j-4] = n.sum((flux[i,temp_bounds]-synflux[i,temp_bounds])*dwave[temp_bounds])
 						temp_bounds = n.linspace(wave2bin((1+z_backgal)*5007,c0,c1,Nmax)-j,wave2bin((1+z_backgal)*5007,c0,c1,Nmax)+j,2*j+1,dtype = n.int16)
 						temp_fluxes_OIII[j-4] = n.sum((flux[i,temp_bounds]-synflux[i,temp_bounds])*dwave[temp_bounds])
+
 				OII_flux = n.median(temp_fluxes_OII)
 				OIII_flux = n.median(temp_fluxes_OIII)
 				
@@ -551,8 +584,7 @@ for j in n.arange(len(plate_mjd)):
 				fileQSO = open(topdir + savedir +  '/candidates_QSO.txt','a')
 				fileQSO.write('\n' + str([RA[i], DEC[i], int(plate), int(mjd), fiberid[i], z[i], peak[0],peak[4],peak[5],peak[6],spectroflux[i,1], spectroflux[i,3], OII_flux, OIII_flux ]))
 				fileQSO.close()
-
-				
+		
 				plot_QSOGal(k=k,RA = RA[i],DEC= DEC[i],plate = int(plate), mjd = int(mjd), fiberid = fiberid[i],z=z[i], z_backgal= z_backgal,flux=flux[i,:],wave=wave,synflux=synflux[i,:],ivar= ivar[i,:], \
 					reduced_flux = reduced_flux[i,:], c0=c0,c1=c1,Nmax=Nmax,show = plot_show,topdir=topdir, savedir=savedir, HB_wave = HB_wave , params_beta=params_beta, line_coeff =line_coeff)
 				# plot with +-1 AA for paper
@@ -564,11 +596,13 @@ for j in n.arange(len(plate_mjd)):
 	
 		elif Jackpot == True:
 			k = 0
+
 			for peak in peak_candidates:				
 				
 				fileJ = open(topdir + savedir +  '/candidates_Jackpot.txt','a')
 				fileJ.write('\n' + str([RA[i], DEC[i], int(plate), int(mjd), fiberid[i], z[i], peak[2],peak[3],peak[4],peak[5],peak[6],spectroflux[i,1], spectroflux[i,3]]))
 				fileJ.close()
+
 				k += 1
 				plot_Jackpot(RA= RA[i],DEC=DEC[i],plate =int(plate), mjd=int(mjd), fiberid=fiberid[i], z=z[i],wave=wave, flux =flux[i,:], synflux = synflux[i,:],topdir=topdir,savedir=savedir ,peak = peak, show = plot_show, counter = k)
 	
@@ -649,7 +683,9 @@ for j in n.arange(len(plate_mjd)):
 									params_skew[0],params_skew[1],params_skew[2],params_skew[3],params_skew[4],params_skew[5],params_skew[6],params_skew[7],peak[15],peak[16],peak[17],peak[18], skewness, S, Sw, a_lambda,rchi2[i],peak[19],spectroflux[i,1], spectroflux[i,3],lyA_flux]))
 					# Make the graph
 					plot_QSOLAE(RA= RA[i],DEC = DEC[i],z=z[i],flux=flux[i,:],wave=wave,synflux=synflux[i,:],x0= x0, ivar = ivar[i,:], reduced_flux = reduced_flux[i,:],window=window,peak =peak,
+
 						params = params,params_skew=params_skew, topdir = topdir, savedir = savedir, n_peak = n_peak, plate = int(plate), mjd = int(mjd), fiberid = fiberid[i],c0=c0,c1=c1,Nmax=Nmax, show = plot_show, paper = paper, QSOlens = QSOlens)
+
 					
 				n_peak = n_peak +1
 			fileLyA.close()

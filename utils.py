@@ -53,8 +53,10 @@ def chi2skew2(params, xdata, ydata, ivar):
 	return np.sum(ivar*(ydata - skew(x=xdata,A = params[0], w=params[1], a=params[2], eps = params[3]) - skew(x=xdata, A = params[4], w = params[5], a=params[6], eps=params[7]))**2)/(len(xdata)-len(params)-1)
 
 # Check if x0 is near any emission line redshifted by z
-def nearline(x0, zline, fiberid, z, mjd, plate):
-	match1 = np.logical_and(abs(zline['linewave']*(1+z) -x0) < 10, zline['lineew']/zline['lineew_err'] > 6)
+
+def nearline(x0, zline, fiberid, z, mjd, plate, width = 10):
+	match1 = np.logical_and(abs(zline['linewave']*(1+z) -x0) < width, zline['lineew']/zline['lineew_err'] > 6)
+
 	match2 = np.logical_and(zline['fiberid']==fiberid,zline['mjd']==int(mjd))
 	match3 = np.logical_and(zline['plate']==int(plate), zline['lineew_err']>0)
 	match4 = np.logical_and(match1,np.logical_and(match2,match3))
@@ -159,12 +161,17 @@ def make_sure_path_exists(path):
             raise
 #-----------------------------------------------------------------------------------------------------
 
-def load_data(mjd, plate, BOSS = True, eBOSS = False, logdir = '../../../../../SCRATCH/' ):
-	if BOSS == True:
+
+def load_data(mjd, plate, BOSS = True, eBOSS = False, logdir = '../../../../../SCRATCH/' , BOSS_version = False):
+	if BOSS == True and BOSS_version == False:
 		spfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
 		zbfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/' + str(plate) + '/v5_7_0/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
 		zlfile = '../../../../../SCRATCH/BOSS/data/v5_7_0/' + str(plate) + '/v5_7_0/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'
-	elif eBOSS == False:
+	elif BOSS == True and BOSS_version == True:
+		spfile = '../../../../../SCRATCH/BOSS/data/v5_7_2/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
+		zbfile = '../../../../../SCRATCH/BOSS/data/v5_7_2/' + str(plate) + '/v5_7_2/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
+		zlfile = '../../../../../SCRATCH/BOSS/data/v5_7_2/' + str(plate) + '/v5_7_2/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'
+	elif eBOSS == True:
 		spfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/'+ str(plate) + '/spPlate-' + str(plate) + '-' + str(mjd) + '.fits'
 		zbfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/' + str(plate) + '/v5_10_0/' + 'spZbest-'+ str(plate) + '-' + str(mjd) + '.fits'
 		zlfile = '../../../../../SCRATCH/eBOSS/data/v5_10_0/' + str(plate) + '/v5_10_0/' + 'spZline-'+ str(plate) + '-' + str(mjd) + '.fits'

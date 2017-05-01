@@ -373,7 +373,7 @@ for j in n.arange(len(plate_mjd)):
 				res2 = minimize(chi2D,[1.0,5,1.0,x0-1.5,x0+1.5],args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(0.1,5),(1,8),(0.1,5),(x0-7,x0),(x0,x0+7)])
 				params2 = res2.x
 				chisq2 = res2.fun
-				if  (searchLyA == False and 0.5*x0/3726.5<abs(params2[3]-params2[4])<2.1*x0/3726.5 and not(chisq2 > max_chi2)):					
+				if  (searchLyA == False and 0.5*x0/3726.5<abs(params2[3]-params2[4])<4*x0/3726.5 and not(chisq2 > max_chi2)):					
 
 					peak[5] = chisq2
 					peak[6] = params2[0] #amp1

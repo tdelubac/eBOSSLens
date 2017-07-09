@@ -22,9 +22,10 @@ def lorentz(x, x_0, g, A):
 def chi2Lorenz(params, xdata, ydata, ivar):
     return np.sum(ivar*(ydata - lorentz(x=xdata, x_0=params[0], g=params[1], A=params[2]))**2)/(len(xdata)-len(params)-1)
 
+
 # Generate a Gaussian around x_0 with amplitude A and variance var
-def gauss(x,x_0,A,var):
-    y = A*np.exp( (-(x-x_0)**2) / (2*var) )
+def gauss(x, x_0, A, var):
+    y = A * np.exp((-(x - x_0) ** 2.0) / (2.0 * var))
     return y
 # Generate doublet
 def gauss2(x,x1,x2,A1,A2,var):
@@ -63,10 +64,11 @@ def nearline(x0, zline, fiberid, z, mjd, plate, width = 10):
     else:
         return False
 
-#Gaussian kernel used in first feature search (Bolton et al.,2004 method)
-def kernel(j,width,NormGauss,length):
+
+# Gaussian kernel used in first feature search (Bolton et al.,2004 method)
+def kernel(j, width, NormGauss, length):
     ker = np.zeros(length)
-    ker[int(j-width*0.5):int(j+width*0.5)] = NormGauss
+    ker[int(j - width * 0.5):int(j + width * 0.5)] = NormGauss
     return ker
 
 # Estimated Einstein Radius from Single Isothermal Sphere (SIS) model
@@ -157,56 +159,3 @@ def make_sure_path_exists(path):
     except OSError as exception:
         if exception.errno != errno.EEXIST:
             raise
-#-----------------------------------------------------------------------------------------------------
-
-
-def load_data(mjd, plate, BOSS=True, eBOSS=False, logdir='../SCRATCH/',
-              BOSS_version=False):
-    if BOSS and (not BOSS_version):
-        dir1 = 'BOSS/data/v5_7_0'
-        dir2 = 'v5_7_0'
-    elif BOSS and BOSS_version:
-        dir1 = 'BOSS/data/v5_7_2'
-        dir2 = 'v5_7_2'
-    elif eBOSS:
-        dir1 = 'eBOSS/data/v5_10_0'
-        dir2 = 'v5_10_0'
-    else:
-        raise ValueError("Invalid BOSS, BOSS_version, eBOSS combination")
-    spfile = os.path.join(logdir, dir1, str(plate),
-                          'spPlate-' + str(plate) + '-' + str(mjd) + '.fits')
-    zbfile = os.path.join(logdir, dir1, str(plate), dir2,
-                          'spZbest-' + str(plate) + '-' + str(mjd) + '.fits')
-    zlfile = os.path.join(logdir, dir1, str(plate), dir2,
-                          'spZline-' + str(plate) + '-' + str(mjd) + '.fits')
-    hdulist = pf.open(spfile)
-    c0 = hdulist[0].header['coeff0']
-    c1 = hdulist[0].header['coeff1']
-    npix = hdulist[0].header['naxis1']
-    wave = 10.**(c0 + c1 * np.arange(npix))
-    flux = hdulist[0].data
-    ivar = hdulist[1].data
-    hdulist.close()
-    hdulist = 0
-    hdulist = pf.open(zbfile)
-    vdisp = hdulist[1].data.field('VDISP')
-    synflux = hdulist[2].data
-    fiberid = hdulist[1].data.field('FIBERID')
-    RA = hdulist[1].data.field('PLUG_RA')
-    DEC = hdulist[1].data.field('PLUG_DEC')
-    obj_id = hdulist[1].data.field('OBJID')
-    obj_class = hdulist[1].data.field('CLASS')
-    obj_type = hdulist[1].data.field('OBJTYPE')
-    z = hdulist[1].data.field('Z')
-    zwarning = hdulist[1].data.field('ZWARNING')
-    z_err = hdulist[1].data.field('Z_ERR')
-    spectroflux = hdulist[1].data.field('SPECTROFLUX')
-    rchi2 = hdulist[1].data.field('RCHI2')
-    rchi2diff = hdulist[1].data.field('RCHI2DIFF')
-    hdulist.close()
-    hdulist = 0
-    hdulist = pf.open(zlfile)
-    zline = hdulist[1].data
-    hdulist.close()
-    hdulist = 0
-    return c0,c1,wave,flux,ivar,vdisp, synflux,fiberid, RA, DEC, obj_id, obj_class, obj_type, z, zwarning, z_err, spectroflux, rchi2, rchi2diff, zline,npix

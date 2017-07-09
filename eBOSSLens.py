@@ -14,58 +14,56 @@ import itertools as it
 import numpy as n
 from scipy.optimize import minimize
 from SDSSObject import SDSSObject
-from utils import *
-from utils_QSO import *
-from utils_Gal import *
+from peakFinder import bolEstm, peakCandidate, combNear, checkFore, nearLine
+from utils import gauss, kernel
 
 
-if __name__ == "__main__":
-    # Parse argument from command line
-    parser = argparse.ArgumentParser()
-    parser.add_argument("chi2", type=float)
-    parser.add_argument("width", type=float)
-    parser.add_argument("sig", type=float)
-    parser.add_argument("sdir", type=str)
-    parser.add_argument("dataVersion", type=str)
-    args = parser.parse_args()
-    # Never show plot
-    plot_show = False
-    # Operation mode
-    searchLyA = False
-    QSOlens = False
-    paper = True
-    Jackpot = False
-    # Data version
-    dataVersion = args.dataVersion
-    # Max chi2 for gaussian/ doublet fitting OII
-    setWidth = args.width
-    setSig = args.sig
-    max_chi2 = args.chi2
-    # Set topdir,savedir:
-    topdir = '..'
-    savedir = args.sdir
-    basedir = "/SCRATCH"
-    # Give file in [plate mjd] format of plates you want to inspect
-    plates_list = 'list_QSOGal.txt'
-    # Waves for mask
-    wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
-                     [6348.0, 6378.0]])
-    # Set of emission lines used for lensed galaxy detection: OII, Hb, OIII,
-    # OIII, Ha
-    em_lines = n.array([3726.5, 4861.325, 4958.911, 5006.843, 6562.801])
-    # Typical mask width
-    l_width = 15
-
+# Parse argument from command line
+parser = argparse.ArgumentParser()
+parser.add_argument("chi2", type=float)
+parser.add_argument("width", type=float)
+parser.add_argument("sig", type=float)
+parser.add_argument("sdir", type=str)
+parser.add_argument("dataVersion", type=str)
+args = parser.parse_args()
+# Never show plot
+plot_show = False
+# Operation mode
+searchLyA = False
+QSOlens = False
+paper = True
+Jackpot = False
+# Data version
+dataVersion = args.dataVersion
+# Max chi2 for gaussian/ doublet fitting OII
+setWidth = args.width
+setSig = args.sig
+max_chi2 = args.chi2
+# Set topdir,savedir:
+topdir = '..'
+savedir = args.sdir
+baseDir = "/SCRATCH"
+# Give file in [plate mjd] format of plates you want to inspect
+plates_list = 'list_QSOGal.txt'
+# Waves for mask
+wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
+                 [6348.0, 6378.0]])
+# Set of emission lines used for lensed galaxy detection: OII, Hb, OIII,
+# OIII, Ha
+em_lines = n.array([3726.5, 4861.325, 4958.911, 5006.843, 6562.801])
+# Typical mask width
+l_width = 15
 # ------------------------------------------------------------------------------
 # ------------------------- INITIALIZATION -------------------------------------
-plate_mjd = [line.strip().split() for line in open(topdir + savedir + plates_list)]
+plate_mjd = [line.strip().split() for line in
+             open(topdir + savedir + plates_list)]
 l_LyA = 1215.668
 
 # Needed for QSO lenses (QSO in DR12 with proper classificaiton)
-DR12Q = DR12Q_extractor(path='./Superset_DR12Q.fits')
+# DR12Q = DR12Q_extractor(path='./Superset_DR12Q.fits')
 
 # Counters used to check the numbers of candidates at key step
-counter1 = 0
+goodObjs = 0
 counter2 = 0
 counter3 = 0
 counter4 = 0
@@ -81,7 +79,9 @@ for j in n.arange(len(plate_mjd)):
     obj.mask(wMask)
     # Loop over fibers
     for i in n.arange(0, len(flux[:, 0])):
+        # TODO: clean up
         if QSOlens:
+            '''
             redshift_warning = False
             # Take only QSOs
             if obj.obj_type[i].startswith('sky') or \
@@ -110,169 +110,124 @@ for j in n.arange(len(plate_mjd)):
 
 
             ivar[i,:] = mask_QSO(ivar=ivar[i,:],z=z[i], l_width = l_width, c0 = c0 , c1=c1,Nmax=Nmax)
-
+            '''
+        # End TODO
 
         else:
-            if (obj_class[i] == 'STAR  ' or obj_class[i] == 'QSO   ' or obj_type[i] =='SKY             ' or 'SPECTROPHOTO_STD'==obj_type[i]):
+            # ?
+            if obj.obj_class[i] == 'STAR  ' or obj.obj_class[i] == 'QSO   ' or \
+                    obj.obj_type[i] == 'SKY             ' or \
+                    obj.obj_type[i] == 'SPECTROPHOTO_STD':
                 continue
-
+        # Good objects
+        goodObjs = goodObjs + 1
+        # Find peaks
         peaks = []
-        peak_number = len(peaks)
         doublet = None
-
-
-        counter1 = counter1 +1
-
-
-        ### Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks
-        if searchLyA == True:
+        # Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks
+        if searchLyA:
             width = 30.0
             sig = 2.17
-        elif searchLyA == False:
+        else:
             width = setWidth
             sig = setSig
-        ## Prepare normalized gaussian
-        NormGauss = gauss(n.linspace(-width*0.5,width*0.5,width),0.0,1.0,sig**2)
-        NormGauss = NormGauss/n.sum(NormGauss)
-        Cj1 = n.array([n.sum(reduced_flux[i,:]*kernel(j+0.5*width,width,NormGauss,len(wave))*ivar[i,:]) for j in range(int(len(wave)-width))])
-        Cj2 = n.array([n.sum(ivar[i,:]*kernel(j+0.5*width,width,NormGauss,len(wave))**2) for j in range(int(len(wave)-width))])
-        SN = n.zeros(len(wave))
-        SN[int(width*0.5):int(width*0.5+len(Cj1))] = Cj1/n.sqrt(Cj2)
-
-
-        if searchLyA == True and QSOlens == True:
-            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  (l_LyA*(1+z[i])+300)<x0<9500)])
-
-        elif searchLyA == False and QSOlens == True:
-            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(wave,SN) if (test>6.0 and  (l_LyA*(1+z[i])+300)<x0<9500)])
+        NormGauss = gauss(n.linspace(-width * 0.5, width * 0.5, width), 0.0,
+                          1.0, sig ** 2.0)
+        NormGauss = NormGauss / n.sum(NormGauss)
+        SN = bolEstm(i, obj, width, sig)
+        '''
+        if searchLyA and QSOlens:
+            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(obj.wave,SN) if (test > 8.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
+        elif searchLyA == False and QSOlens:
+            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(obj.wave,SN) if (test>6.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
         elif searchLyA == True and QSOlens == False:
-            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if (test>8.0 and  3600<x0<4800)])
+            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(obj.wave,SN) if (test>8.0 and  3600 < x0 < 4800)])
         elif Jackpot == True:
-
             # x0 z1 z2 Quad_SN2 SN0->Quad_SN1  free free
-
-            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(wave,SN) if test>8.0])
-        elif searchLyA == False and QSOlens == False:
-            peak_candidates = n.array([(x0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(wave,SN) if test>6.0])
+            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(obj.wave,SN) if test>8.0])
+        elif not (searchLyA or QSOlens):
+            peak_candidates = n.array([(x0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(obj.wave,SN) if test>6.0])
         else:
             continue
+        '''
         #(Legend key:) wavelength(x0) chisq_doublet amp_gauss var_gauss S/N chisq_doublet amp1_doublet amp2_doublet var_doublet x1 x2
-        #Keep only center of candidate peaks
-        k = 0
-
-        if searchLyA == False and QSOlens == False:
-            while (k < (len(peak_candidates)-1)):
-                if (abs(peak_candidates[k][0] - peak_candidates[k+1][0]) < 10):
-                    if peak_candidates[k][4] < peak_candidates[k+1][4]:
-
-                        peak_candidates = n.delete(peak_candidates,k, axis=0)
-                        k = k-1
-                    else:
-                        peak_candidates = n.delete(peak_candidates,k+1,axis = 0)
-                        k = k-1
-                k = k+1
-
-        else:
-            while (k < (len(peak_candidates)-1)):
-                if (abs(peak_candidates[k][0] - peak_candidates[k+1][0]) < 10):
-                    if peak_candidates[k][6] < peak_candidates[k+1][6]:
-
-                        peak_candidates = n.delete(peak_candidates,k, axis=0)
-                        k = k-1
-                    else:
-                        peak_candidates = n.delete(peak_candidates,k+1,axis = 0)
-                        k = k-1
-                k = k+1
-
-        chisq = 10000
-        chisq2 = 10000
-
-        chisq_skew = 10000
-        chi2_width = 10000
-
-        #### check hits are not from foreground galaxy or badly fitted QSO
+        # Filter out invalid sources
+        if not (searchLyA or QSOlens):
+            peak_candidates = n.array([
+                peakCandidate(x0, test, searchLyA, QSOlens, Jackpot)
+                for x0, test in zip(obj.wave, SN) if test > 6.0])
+        elif searchLyA and QSOlens:
+            # TODO: meaning of parameters
+            pass
+        # Keep the center
+        peak_candidates = combNear(peak_candidates)
+        # Check hits are not from foreground galaxy or badly fitted QSO
         if QSOlens and searchLyA:
-            foreground_z = False
-            compare = it.combinations(em_lines,len(peak_candidates))
-            for group in compare:
-                for k in range(len(peak_candidates)):
-                    for j in range(k+1,len(peak_candidates)):
-                        if ( n.abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and 0.0<peak_candidates[k][0]/group[k]-1.0 < (z[i] - 0.05) ):
-                            foreground_z = True
-            if foreground_z:
+            if checkFore(peak_candidates, em_lines, obj.z[i]):
                 continue
-
-        #Search for suitable peak candidates
+        # Search for suitable peak candidates
         for peak in peak_candidates:
-            x0 = peak[0]
-            if nearline(x0, zline, fiberid[i], z[i], int(mjd), int(plate)):
+            x0 = peak.wavelength
+            if nearLine(int(mjd), int(plate), i, x0, obj):
                 continue
-
-            bounds = n.linspace(wave2bin(x0,c0,c1,Nmax)-15,wave2bin(x0,c0,c1,Nmax)+15,31,dtype = n.int16)
-
-            # Fit QSO continuum and check if signal is reduced or not (i.e. check if line detection is produced by large features)
-
+            x0Bin = obj.wave2bin(x0)
+            bounds = n.linspace(x0Bin - 15, x0Bin + 15, 31, dtype=n.int16)
+            # Fit QSO continuum and check if signal is reduced or not
+            # i.e. check if line detection is produced by large features
             if QSOlens:
-                window = n.linspace(wave2bin(x0,c0,c1,Nmax)-40,wave2bin(x0,c0,c1,Nmax)+40,81,dtype = n.int16)
-                median_local = n.median(reduced_flux[i,window])
-                fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<5)*n.sqrt(ivar[i,window])) )
-                new_flux = reduced_flux[i,window] - fit_QSO(wave[window])
-
-                cj1_new = n.sum(new_flux*kernel(int(len(window)/2),width,NormGauss,len(new_flux))*ivar[i,window])
-                cj2_new = n.sum(ivar[i,window]*kernel(int(len(window)/2),width,NormGauss,len(window))**2)
-                SN_fitted = cj1_new/n.sqrt(cj2_new)
-
-                if  searchLyA and (SN_fitted < 6):
+                window = n.linspace(x0Bin - 40, x0Bin + 40, 81, dtype=n.int16)
+                median_local = n.median(obj.reduced_flux[i, window])
+                weight = n.abs(obj.reduced_flux[i, window] - median_local) < 5
+                fit_QSO = n.poly1d(n.polyfit(x=obj.wave[window],
+                                             y=obj.reduced_flux[i, window],
+                                             deg=3,
+                                             w=weight *
+                                             n.sqrt(obj.ivar[i, window])))
+                new_flux = obj.reduced_flux[i, window] - \
+                    fit_QSO(obj.wave[window])
+                cj1_new = n.sum(new_flux * kernel(int(len(window) / 2), width,
+                                                  NormGauss, len(new_flux)) *
+                                obj.ivar[i, window])
+                cj2_new = n.sum(obj.ivar[i, window] *
+                                kernel(int(len(window) / 2), width, NormGauss,
+                                       len(window)) ** 2.0)
+                SN_fitted = cj1_new / n.sqrt(cj2_new)
+                if SN_fitted < 6:
                     continue
-                elif searchLyA and SN_fitted > 6:
-                    peak[19] = SN_fitted
-                    reduced_flux[i,window]=new_flux
-                elif searchLyA == False and SN_fitted < 6:
-                    continue
-                elif searchLyA == False and SN_fitted > 6:
-
-                    peak[3] = SN_fitted
-                    reduced_flux[i,window]=new_flux
-
-
-            #### Special case: QSOlens with background galaxies
-            if searchLyA == False and QSOlens==True and Jackpot == False:
+                else:
+                    peak.snFitted = SN_fitted
+                    obj.reduced_flux[i, window] = new_flux
+            # Special case: QSOlens with background galaxies
+            if (not (searchLyA or Jackpot)) and QSOlens:
                 for l in em_lines:
-                    test_z = peak[0]/l - 1.0
-                    if test_z > z[i]:
+                    test_z = peak.wavelength / l - 1.0
+                    if test_z > obj.z[i]:
                         quad_SN = 0.0
                         for w in em_lines:
-                            center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
-                            SN_line = n.array(SN[center_bin-2:center_bin+2])
-                            quad_SN += max(SN_line*(SN_line>0))**2
-
+                            center_bin = obj.wave2bin(w * (1.0 + test_z))
+                            SN_line = n.array(SN[center_bin - 2:center_bin + 2])
+                            quad_SN += max(SN_line * (SN_line > 0)) ** 2.0
                         quad_SN = n.sqrt(quad_SN)
-
-                        if quad_SN > peak[5]:
-                            peak[5] = quad_SN
-                            peak[4] = test_z
+                        if quad_SN > peak.sn:
+                            peak.sn = quad_SN
+                            peak.z = test_z
                 continue
-
-            ### Special case: Jackpot lenses
-
-
+            # Special case: Jackpot
             mask_width_Jackpot = 50
-
-
-            if Jackpot == True:
-
+            if Jackpot:
                 first_lens = False
-                peak[5] = peak[6]
-                peak[4] = peak[6]
+                peak[5] = peak.sn
+                peak[4] = peak.sn
                 for l in em_lines:
-                    test_z = peak[0]/l -1.0
-                    if test_z > z[i]+0.05:
-
-                        quad_SN_1 = peak[6]
+                    test_z = x0 / l - 1.0
+                    if test_z > obj.z[i] + 0.05:
+                        quad_SN_1 = peak.sn
                         for w in em_lines:
-                            if w*(1+test_z) < 9500:
-                                center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
-                                SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z), zline, fiberid[i], z[i], int(mjd), int(plate), mask_width_Jackpot)))
+                            if w * (1.0 + test_z) < 9500:
+                                center_bin = obj.wave2bin(w * (1.0 + test_z))
+                                SN_line = n.array(
+                                    SN[center_bin - 2:center_bin + 2]) * \
+                                    (not(nearline(w*(1+test_z), zline, fiberid[i], z[i], int(mjd), int(plate), mask_width_Jackpot)))
                                 quad_SN_1 += max(SN_line*(SN_line>0))**2
 
                         quad_SN_1 = n.sqrt(quad_SN_1)
@@ -676,4 +631,3 @@ for j in n.arange(len(plate_mjd)):
             plot_GalaxyLens(doublet = doublet,RA = RA[i],DEC = DEC[i],plate = plate,fiberid=fiberid[i],mjd=mjd,z=z[i],z_err =z_err[i], \
                 obj_class = obj_class[i],wave = wave, reduced_flux=reduced_flux[i,:], zline = zline, fit = fit,topdir = topdir, savedir = savedir, peak_candidates =peak_candidates, \
                 doublet_index = doublet_index, c0 = c0,c1 = c1,Nmax = Nmax, show = plot_show)
-

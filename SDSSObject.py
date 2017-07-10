@@ -1,6 +1,8 @@
 import os
 import numpy as np
 import pyfits as pf
+from scipy.optimize import minimize
+from utils import chi2g, chi2D
 
 
 class SDSSObject():
@@ -92,3 +94,17 @@ class SDSSObject():
         for each in lineList:
             maskRange = self.wave2bin(each)
             self.ivar[:, maskRange[0]: maskRange[1]] = 0
+
+    def singletFit(self, i, bounds, initParam, paramLim):
+        res = minimize(chi2g, initParam, args=(self.wave[bounds],
+                                               self.reduced_flux[i, bounds],
+                                               self.ivar[i, bounds]),
+                       method='SLSQP', bounds=paramLim)
+        return res.x, res.fun
+
+    def doubletFit(self, i, bounds, initParam, paramLim):
+        res = minimize(chi2D, initParam, args=(self.wave[bounds],
+                                               self.reduced_flux[i, bounds],
+                                               self.ivar[i, bounds]),
+                       method='SLSQP', bounds=paramLim)
+        return res.x, res.fun

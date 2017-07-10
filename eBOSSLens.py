@@ -150,15 +150,24 @@ for j in n.arange(len(plate_mjd)):
         else:
             continue
         '''
-        #(Legend key:) wavelength(x0) chisq_doublet amp_gauss var_gauss S/N chisq_doublet amp1_doublet amp2_doublet var_doublet x1 x2
         # Filter out invalid sources
         if not (searchLyA or QSOlens):
-            peak_candidates = n.array([
-                peakCandidate(x0, test, searchLyA, QSOlens, Jackpot)
+            peak_candidates = n.array([peakCandidate(x0, test)
                 for x0, test in zip(obj.wave, SN) if test > 6.0])
+        # TODO: clean up
+        '''
         elif searchLyA and QSOlens:
-            # TODO: meaning of parameters
-            pass
+            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(obj.wave,SN) if (test > 8.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
+        elif searchLyA == False and QSOlens:
+            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(obj.wave,SN) if (test>6.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
+        elif searchLyA == True and QSOlens == False:
+            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(obj.wave,SN) if (test>8.0 and  3600 < x0 < 4800)])
+        elif Jackpot == True:
+            # x0 z1 z2 Quad_SN2 SN0->Quad_SN1  free free
+            peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(obj.wave,SN) if test>8.0])
+        '''
+        else:
+            continue
         # Keep the center
         peak_candidates = combNear(peak_candidates)
         # Check hits are not from foreground galaxy or badly fitted QSO
@@ -167,13 +176,15 @@ for j in n.arange(len(plate_mjd)):
                 continue
         # Search for suitable peak candidates
         for peak in peak_candidates:
-            x0 = peak.wavelength
+            x0 = peak.wavSinglet
             if nearLine(int(mjd), int(plate), i, x0, obj):
                 continue
             x0Bin = obj.wave2bin(x0)
             bounds = n.linspace(x0Bin - 15, x0Bin + 15, 31, dtype=n.int16)
             # Fit QSO continuum and check if signal is reduced or not
             # i.e. check if line detection is produced by large features
+            # TODO: clean up
+            '''
             if QSOlens:
                 window = n.linspace(x0Bin - 40, x0Bin + 40, 81, dtype=n.int16)
                 median_local = n.median(obj.reduced_flux[i, window])
@@ -254,50 +265,46 @@ for j in n.arange(len(plate_mjd)):
                                         peak[4] = quad_SN_2
                                         peak[3] = test_z_2
                 continue
-
-            #Single Line: Gaussian fit around x_0
-            if searchLyA == True:
-                init = [x0,4,6]
-                res =  minimize(chi2g,init,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(x0-2,x0+2),(1,100),(1,15)])
-
-            elif searchLyA == False and QSOlens ==False:
-                init = [x0,1,2]
-                res =  minimize(chi2g,init,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(x0-2,x0+2),(0.1,5),(1,8)])
-
-            params = res.x
-            chisq = res.fun
-
-            #Check for not too high chi square and save
-
-            if (not(chisq > max_chi2) and searchLyA == False and QSOlens == False):
-
-                peak[1] = chisq
-                peak[2] = params[1]
-                peak[3] = params[2]
-                peak[0] = params[0]
+            '''
+            # Singlet
+            if searchLyA:
+                init = [x0, 4.0, 6.0]
+                paramLim = [(x0 - 2.0, x0 + 2.0), (1.0, 100.0), (1.0, 15.0)]
+            elif not (searchLyA or QSOlens):
+                init = [x0, 1.0, 2.0]
+                paramLim = [(x0 - 2.0, x0 + 2.0), (0.1, 5.0), (1.0, 8.0)]
+            params, chisq = obj.singletFit(i, bounds, init, paramLim)
+            # Check for not too high chi square and save
+            if not (chisq > max_chi2 or searchLyA or QSOlens):
+                peak.wavSinglet = params[0]
+                peak.ampSinglet = params[1]
+                peak.varSinglet = params[2]
+                peak.chiSinglet = chisq
+            # TODO: clean up
+            '''
             elif searchLyA:
-                peak[1] = params[0]
+                peak.wavelength = params[0]
                 peak[2] = params[1]
                 peak[3] = params[2]
                 #eq_Width = quad(gauss,x0-200,x0+200,args=(params[0],params[1],params[2]))
                 chi2_width = chisq
                 peak[15] = chisq
-
-            #Doublet OII: Gaussian fit around x_0
-
-            if (x0 > 3727.0*(1+z[i]) or searchLyA==True and QSOlens == False):
-
-                res2 = minimize(chi2D,[1.0,5,1.0,x0-1.5,x0+1.5],args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(0.1,5),(1,8),(0.1,5),(x0-7,x0),(x0,x0+7)])
-                params2 = res2.x
-                chisq2 = res2.fun
-                if  (searchLyA == False and 0.5*x0/3726.5<abs(params2[3]-params2[4])<4*x0/3726.5 and not(chisq2 > max_chi2)):
-
-                    peak[5] = chisq2
-                    peak[6] = params2[0] #amp1
-                    peak[7] = params2[2] #amp2
-                    peak[8] = params2[1] #var
-                    peak[9] = params2[3] #x1
-                    peak[10] = params2[4] #x2
+            '''
+            #Doublet OII
+            if (x0 > 3727.0 * (1.0 + obj.z[i]) or searchLyA and not QSOlens:
+                params2, chisq2 = obj.doubletFit(i, bounds,
+                                                 [1.0, 5.0, 1.0, x0 - 1.5, x0 + 1.5],
+                                                 [(0.1, 5.0), (1.0, 8.0), (0.1, 5.0),
+                                                  (x0 - 7.0, x0), (x0, x0 + 7.0)])
+                if  (not searchLyA and
+                     0.5 * x0 < abs(params2[3] - params2[4]) * 3726.5 < 4.0 * x0 and
+                     not (chisq2 > max_chi2)):
+                    peak.chiDoublet = chisq2
+                    peak.ampDoublet = np.array([params2[0], params2[2]])
+                    peak.varDoublet = params2[1]
+                    peak.wavDoublet = np.array([params2[3], params2[4]])
+                # TODO: clean up
+                '''
                 elif searchLyA and chisq2<chisq:
                     peak[1] = params2[3] #x1
                     peak[2] = params2[4] #x2
@@ -310,7 +317,9 @@ for j in n.arange(len(plate_mjd)):
                 elif searchLyA:
                     peak[16] = chisq2
                     # Delta OII restframe:  1.3 A  (3725.94 3727.24)
-
+                '''
+            # TODO: clean up
+            '''
             # If looking at LAE, test a skew-normal profile as well
             if searchLyA:
                 # Sharp blue, red tail
@@ -363,44 +372,34 @@ for j in n.arange(len(plate_mjd)):
                 #put back reduced flux by adding again 3rd order fit (plotting purpose)
                 if QSOlens:
                     reduced_flux[i,window]= new_flux + fit_QSO(wave[window])
-
+            '''
         counter2 = counter2 + 1;
-
-        if searchLyA == False and QSOlens == False and Jackpot == False:
-
-        #Finding peak with lowest chi square for doublet and see if it is better fitted by single line or not
-            doublet_index = 0
-            chi2saved = 1000.0
-        # Find the doublet index
+        if not (searchLyA or QSOlens or Jackpot):
+            # Compare singlet and doublet fit within each peakCandidate
             for k in range(len(peak_candidates)):
                 peak = peak_candidates[k]
-                if (peak[1]>peak[5]>0 and peak[5]< chi2saved and peak[0]<9200) :
-                    peak[1] = peak[5]
-                    chi2saved = peak[5]
-                    doublet = True
-                    doublet_index = k
-
-            #Removing candidates that were not fitted : params still 0
-            peak_candidates = n.array([peak for peak in peak_candidates if (peak[2]!=0 or peak[5]==peak[1]!=0)])
+                peak.update()
+                if peak.wavelength > 9200.0:
+                    peak.setDoublet(False)
+            # Removing candidates that were not fitted : params still 0
+            peak_candidates = n.array([peak for peak in peak_candidates if (peak.chiDoublet == peak.chiSinglet != 1000.0)])
             if len(peak_candidates) == 0:
                 continue
-
-            counter3 = counter3+1;
-            #Sorting candidates by chi square
-
-            peak_candidates = sorted(peak_candidates, key=lambda peak: peak[1])
-
+            counter3 = counter3 + 1;
+            # Sorting candidates by chi square
+            peak_candidates = sorted(peak_candidates, key=lambda peak: peak.chi)
             # Keeping only 5 most likely candidates
             if len(peak_candidates) > 5:
                 peak_candidates = peak_candidates[0:5]
-            #find again doublet index
-            found = False
+            # Find whether doublet is in the 5 most likely
+            doublet_index = 0
+            doublet = False
             for k in range(len(peak_candidates)):
-                if (peak_candidates[k][5] == chi2saved):
+                if peak_candidates[k].isDoublet:
                     doublet_index = k
-                    found = True
-            if found==False:
-                doublet = False
+                    doublet = True
+        # TODO: clean up
+        '''
         elif searchLyA == False and QSOlens == True and Jackpot == False:
             peak_candidates = n.array([peak for peak in peak_candidates if peak[5]>(1.5+peak[6])])
 
@@ -416,68 +415,63 @@ for j in n.arange(len(plate_mjd)):
             peak_candidates = sorted(peak_candidates, key=lambda peak: peak[5])
             if len(peak_candidates) > 3:
                 peak_candidates = peak_candidates[0:3]
-
+        '''
         if len(peak_candidates) == 0:
             continue
-
         # Check that at least 1 candidate is below 9200 Angstrom cut, if not, go to next fiber
         below_9500 = False
         for peak in peak_candidates:
-            if peak[0] < 9500:
+            if peak.wavelength < 9500.0:
                 below_9500 = True
-        if below_9500 == False:
+                break
+        if not below_9500:
             continue
-
-        counter4 = counter4+1;
-
-
+        counter4 = counter4 + 1;
         #Try to infer background redshift
         detection = False
         score = 0.0
-
-        if (doublet == True and searchLyA == False and QSOlens==False and Jackpot == False):
-
-            fileD = open(topdir + savedir +  '/candidates_doublet.txt','a')
-            z_s = peak_candidates[doublet_index][0]/3727.24 - 1.0
-            if (z_s > z[i]+0.05):
-                detection = True
-                score += peak_candidates[doublet_index][5]
-                fileD.write('\n' +str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],peak_candidates[doublet_index][9]]))
-                fileD.close()
-            if len(peak_candidates):
-                fileDM = open(topdir + savedir + '/candidates_DM.txt','a')
-                confirmed_lines = []
-                #Generating all combinations of lines from above list to compare with candidates
-                temp = [peak for peak in peak_candidates if peak[1]!=peak[5]]
-                compare = em_lines[1:5]
-                if z_s > z[i]+0.05 :
-                    for peak in temp:
-                        for line in compare:
-                            if (abs(peak[0]/line -1 - z_s) < 0.01):
-                                detection = True
-                                confirmed_lines.append(line)
-                                score+= peak[5]
+        if not (searchLyA or QSOlens or Jackpot):
+                if doublet:
+                    fileD = open(topdir + savedir +  '/candidates_doublet.txt','a')
+                    z_s = peak_candidates[doublet_index].wavelength / 3727.24 - 1.0
+                    if (z_s > obj.z[i]+0.05):
+                        detection = True
+                        score = peak_candidates[doublet_index].chi
+                        fileD.write('\n' +str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],peak_candidates[doublet_index][9]]))
+                    fileD.close()
+                    if len(peak_candidates):
+                        fileDM = open(topdir + savedir + '/candidates_DM.txt','a')
+                        confirmed_lines = []
+                        # Generating all combinations of lines from above list to compare with candidates
+                        temp = [peak for peak in peak_candidates if peak[1]!=peak[5]]
+                        compare = em_lines[1:5]
+                        if z_s > obj.z[i] + 0.05 :
+                            for peak in temp:
+                                for line in compare:
+                                    if (abs(peak[0]/line -1 - z_s) < 0.01):
+                                        detection = True
+                                        confirmed_lines.append(line)
+                                        score+= peak[5]
+                        if (confirmed_lines != []):
+                            fileDM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
+                        fileDM.close()
+                elif len(peak_candidates) > 1:
+                    compare = it.combinations(em_lines,len(peak_candidates))
+                    confirmed_lines = []
+                    fileM = open(topdir + savedir +'/candidates_multi.txt','a')
+                    for group in compare:
+                        for k in range(len(peak_candidates)):
+                            for j in range(k+1,len(peak_candidates)):
+                                if ( abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and peak_candidates[k][0]/group[k]-1.0 > (z[i] + 0.05) ):
+                                    detection = True
+                                    z_s = peak_candidates[k][0]/group[k]-1.0
+                                    confirmed_lines.append([group, peak_candidates[k][0]/group[k]-1.0])
+                                    score+= peak_candidates[j][4]**2+peak_candidates[k][4]**2
                     if (confirmed_lines != []):
-                        fileDM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score,z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
-                    fileDM.close()
-
-        elif (doublet != True and len(peak_candidates) > 1 and searchLyA == False and QSOlens==False and Jackpot == False):
-
-            compare = it.combinations(em_lines,len(peak_candidates))
-            confirmed_lines = []
-            fileM = open(topdir + savedir +'/candidates_multi.txt','a')
-            for group in compare:
-                for k in range(len(peak_candidates)):
-                    for j in range(k+1,len(peak_candidates)):
-                        if ( abs(peak_candidates[k][0]/group[k] - peak_candidates[j][0]/group[j]) < 0.01 and peak_candidates[k][0]/group[k]-1.0 > (z[i] + 0.05) ):
-                            detection = True
-                            z_s = peak_candidates[k][0]/group[k]-1.0
-                            confirmed_lines.append([group, peak_candidates[k][0]/group[k]-1.0])
-                            score+= peak_candidates[j][4]**2+peak_candidates[k][4]**2
-            if (confirmed_lines != []):
-                fileM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score, z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
-            fileM.close()
-
+                        fileM.write('\n'+str([radEinstein(z[i],z_s,vdisp[i]*1000), score, z_s, RA[i], DEC[i], int(plate), int(mjd), fiberid[i],confirmed_lines]))
+                    fileM.close()
+        # TODO: clean up
+        '''
         elif searchLyA == False and QSOlens == True and Jackpot==False:
             for k in range(len(peak_candidates)):
 
@@ -606,6 +600,7 @@ for j in n.arange(len(plate_mjd)):
 
                 n_peak = n_peak +1
             fileLyA.close()
+        '''
         # Save surviving candidates (Galaxy-Galaxy case)
         if searchLyA == False and QSOlens == False and Jackpot == False:
             for k in range(len(peak_candidates)):
@@ -618,9 +613,7 @@ for j in n.arange(len(plate_mjd)):
                     # Save emission line
                     peaks.append([peak[0], peak[2], peak[3]])
         peak_number = len(peak_candidates)
-
         #Graphs OII doublet
-
         if ((peak_number>1 or doublet==True) and below_9500 and detection and searchLyA==False and QSOlens==False and Jackpot == False):
 
             #Computing total fit of all peaks

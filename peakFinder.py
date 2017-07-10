@@ -9,35 +9,43 @@ class peakCandidate():
     =============
     A class for all possible candidates of the peak
     '''
-    def __init__(self, x0, sn, lya, qso, jackpot):
-        # Universal properties
-        self.wavelength = x0  # Original [0]
-        self.sn = sn  # Original [6] for jackpot or qso, [5] for all False
-        self.lya = lya
-        self.qso = qso
-        self.jackpot = jackpot
-        self.chi = 10000.0
-        self.chi2 = 10000.0
-        self.chiSkew = 10000.0
-        self.chi2Width = 10000.0
-        # Different properties
-        if lya and qso:
-            # TODO: meaning of every parameter
-            self.snFitted = 0.0  # Original [19]
-        elif (not lya) and qso:
-            # TODO: meaning of every parameter
-            self.snFitted = 0.0  # Original [3]
-            self.z = 0.0  # Original [4]
-        elif jackpot:
-            # TODO: meaning of every parameter
-            pass
-        elif not (lya or qso):
-            self.chiDoublet = 0.0
-            self.ampGauss = 0.0
-            self.varGauss = 0.0
-            self.ampDoublet = np.array([0.0, 0.0])
-            self.varDoublet = 0.0
-            self.x = np.array([0.0, 0.0])
+    def __init__(self, x0, sn):
+        self.sn = sn                            # Original [4]
+        self.wavelength = x0                    # Wavelength, keep this for comp
+        self.chi = 1000.0                       # Overall chisquare
+        self.amp = np.array([0.0, 0.0])         # Overall amplitude
+        self.var = 0.0                          # Overall var
+        self.wav = x0                           # Overall wavelength
+        self.isDoublet = False                  # Doublet or singlet
+        # Singlet fit
+        self.chiSinglet = 1000.0                # Original [1]
+        self.ampSinglet = 0.0                   # Original [2]
+        self.varSinglet = 0.0                   # Original [3]
+        self.wavSinglet = x0                    # Original [0]
+        # Doublet fit
+        self.chiDoublet = 1000.0                # Original [5]
+        self.ampDoublet = np.array([0.0, 0.0])  # Original [6], [7]
+        self.varDoublet = 0.0                   # Original [8]
+        self.wavDoublet = np.array([x0, x0])    # Original [9], [10]
+
+    def setDoublet(self, flag):
+        self.isDoublet = flag
+        if flag:
+            self.chi = self.chiDoublet
+            self.amp = self.ampDoublet
+            self.var = self.varDoublet
+            self.wav = self.wavDoublet
+        else:
+            self.chi = self.chiSinglet
+            self.amp = self.ampSinglet
+            self.var = self.varSinglet
+            self.wav = self.wavSinglet
+
+    def update(self):
+        if self.chi > self.chiDoublet > self.chiSinglet:
+            self.setDoublet(False)
+        elif self.chi > self.chiSinglet > self.chiDoublet:
+            self.setDoublet(True)
 
 
 def combNear(pcList):

@@ -12,7 +12,7 @@ import itertools as it
 import numpy as n
 from SDSSObject import SDSSObject
 from objFilter import qsoFilter, genFilter
-from peakFinder import bolEstm, peakCandidate, combNear, checkFore, nearLine
+from peakFinder import bolEstm, peakCandidate, combNear, checkFore, qsoContfit,
 from utils import gauss
 
 '''
@@ -34,29 +34,26 @@ savedir = args.sdir
 baseDir = "/SCRATCH"
 # Give file in [plate mjd] format of plates you want to inspect
 plates_list = 'list_QSOGal.txt'
-# Waves for mask
-wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
-                 [6348.0, 6378.0]])
 # Set of emission lines used for lensed galaxy detection: OII, Hb, OIII,
 # OIII, Ha
-em_lines = n.array([3726.5, 4861.325, 4958.911, 5006.843, 6562.801])
 # Typical mask width
 l_width = 15
-# ------------------------------------------------------------------------------
-# ------------------------- INITIALIZATION -------------------------------------
-plate_mjd = [line.strip().split() for line in
-             open(savedir + plates_list)]
-
 # TODO: clean up
 l_LyA = 1215.668
 '''
+em_lines = n.array([3726.5, 4861.325, 4958.911, 5006.843, 6562.801])
+# Waves for mask
+wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
+                 [6348.0, 6378.0]])
 
 
-def eBOSSLens(plate, mjd, fiberid, wMask, searchLya, QSOlens, Jackpot):
+def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
+              wMask=wMask, em_lines=em_lines):
     obj = SDSSObject(plate, mjd, fiberid)
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
     # Filter out unwanted spectras
+    accept = False
     if QSOlens:
         # TODO: complete the function
         accept = qsoFilter(obj)
@@ -64,6 +61,7 @@ def eBOSSLens(plate, mjd, fiberid, wMask, searchLya, QSOlens, Jackpot):
         accept = genFilter(obj)
     if not accept:
         raise Exception("Rejected by filter")
+    # --------------------------------------------------------------------------
     # Find peaks
     peaks = []
     doublet = None
@@ -78,8 +76,11 @@ def eBOSSLens(plate, mjd, fiberid, wMask, searchLya, QSOlens, Jackpot):
     # Filter out invalid sources
     if not (searchLyA or QSOlens):
         peak_candidates = n.array([peakCandidate(x0, test)
-            for x0, test in zip(obj.wave, SN) if test > 6.0])
-    # TODO: clean up
+                                   for x0, test in zip(obj.wave, SN)
+                                   if test > 6.0])
+    else:
+        return
+    # TODO: peakCandidate for qso or/and lya
     '''
     elif searchLyA and QSOlens:
         peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(obj.wave,SN) if (test > 8.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
@@ -90,221 +91,73 @@ def eBOSSLens(plate, mjd, fiberid, wMask, searchLya, QSOlens, Jackpot):
     elif Jackpot == True:
         # x0 z1 z2 Quad_SN2 SN0->Quad_SN1  free free
         peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(obj.wave,SN) if test>8.0])
-    else:
-        return
-        '''
+    '''
     # Keep the center
     peak_candidates = combNear(peak_candidates)
     # Check hits are not from foreground galaxy or badly fitted QSO
     if QSOlens and searchLyA:
-        if checkFore(peak_candidates, em_lines, obj.z[i]):
+        if checkFore(peak_candidates, em_lines, obj.z):
             return
+    # --------------------------------------------------------------------------
     # Search for suitable peak candidates
     for peak in peak_candidates:
         x0 = peak.wavSinglet
-        if nearLine(int(mjd), int(plate), i, x0, obj):
+        if obj.nearLine(x0):
             continue
         x0Bin = obj.wave2bin(x0)
         bounds = n.linspace(x0Bin - 15, x0Bin + 15, 31, dtype=n.int16)
-            # Fit QSO continuum and check if signal is reduced or not
-            # i.e. check if line detection is produced by large features
-            # TODO: clean up
-            '''
-            if QSOlens:
-				window = n.linspace(wave2bin(x0,c0,c1,Nmax)-40,wave2bin(x0,c0,c1,Nmax)+40,81,dtype = n.int16)
-				median_local = n.median(reduced_flux[i,window])
-				fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<5)*n.sqrt(ivar[i,window])) )
-				new_flux = reduced_flux[i,window] - fit_QSO(wave[window])
-
-				cj1_new = n.sum(new_flux*kernel(int(len(window)/2),width,NormGauss,len(new_flux))*ivar[i,window])
-				cj2_new = n.sum(ivar[i,window]*kernel(int(len(window)/2),width,NormGauss,len(window))**2)
-				SN_fitted = cj1_new/n.sqrt(cj2_new)
-
-				if  searchLyA and (SN_fitted < 6):
-					continue
-				elif searchLyA and SN_fitted > 6:
-					peak[19] = SN_fitted
-					reduced_flux[i,window]=new_flux
-				elif searchLyA == False and SN_fitted < 6:
-					continue
-				elif searchLyA == False and SN_fitted > 6:
-
-					peak[3] = SN_fitted
-					reduced_flux[i,window]=new_flux
-
-
-			#### Special case: QSOlens with background galaxies
-			if searchLyA == False and QSOlens==True and Jackpot == False:
-				for l in em_lines:
-					test_z = peak[0]/l - 1.0
-					if test_z > z[i]:
-						quad_SN = 0.0
-						for w in em_lines:
-							center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
-							SN_line = n.array(SN[center_bin-2:center_bin+2])
-							quad_SN += max(SN_line*(SN_line>0))**2
-
-						quad_SN = n.sqrt(quad_SN)
-
-						if quad_SN > peak[5]:
-							peak[5] = quad_SN
-							peak[4] = test_z
-				continue
-
-			### Special case: Jackpot lenses
-
-
-			mask_width_Jackpot = 50
-
-
-			if Jackpot == True:
-
-				first_lens = False
-				peak[5] = peak[6]
-				peak[4] = peak[6]
-				for l in em_lines:
-					test_z = peak[0]/l -1.0
-					if test_z > z[i]+0.05:
-
-						quad_SN_1 = peak[6]
-						for w in em_lines:
-							if w*(1+test_z) < 9500:
-								center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
-								SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z), zline, fiberid[i], z[i], int(mjd), int(plate), mask_width_Jackpot)))
-								quad_SN_1 += max(SN_line*(SN_line>0))**2
-
-						quad_SN_1 = n.sqrt(quad_SN_1)
-						if quad_SN_1 > peak[6] + 6:
-							peak[5] = quad_SN_1
-							peak[2] = test_z
-							first_lens = True
-				if first_lens:
-					for peak2 in peak_candidates:
-
-						if n.abs(peak2[0]- peak[0])> 30:
-							for l in em_lines:
-								test_z_2 = peak2[0]/l -1.0
-								if test_z_2 > z[i]+ 0.05 and abs(peak[2]-test_z_2)> 0.05:
-									quad_SN_2 = 0.0
-									for w in em_lines:
-										if w*(1+test_z_2) < 9500:
-											center_bin = wave2bin(w*(1+test_z_2),c0,c1,Nmax)
-											SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z_2), zline, fiberid[i], z[i], int(mjd), int(plate),mask_width_Jackpot)))
-											quad_SN_2 += max(SN_line*(SN_line>0))**2
-
-									quad_SN_2 = n.sqrt(quad_SN_2)
-									if quad_SN_2 > peak[5] + 6:
-										peak[4] = quad_SN_2
-										peak[3] = test_z_2
-				continue
-            '''
-            # Singlet
-            if searchLyA:
-                init = [x0, 4.0, 6.0]
-                paramLim = [(x0 - 2.0, x0 + 2.0), (1.0, 100.0), (1.0, 15.0)]
-            elif not (searchLyA or QSOlens):
-                init = [x0, 1.0, 2.0]
-                paramLim = [(x0 - 2.0, x0 + 2.0), (0.1, 5.0), (1.0, 8.0)]
-            params, chisq = obj.singletFit(i, bounds, init, paramLim)
-            # Check for not too high chi square and save
-            if not (chisq > max_chi2 or searchLyA or QSOlens):
-                peak.wavSinglet = params[0]
-                peak.ampSinglet = params[1]
-                peak.varSinglet = params[2]
-                peak.chiSinglet = chisq
-            # TODO: clean up
-            '''
-            elif searchLyA:
-                peak.wavelength = params[0]
-                peak[2] = params[1]
-                peak[3] = params[2]
-                #eq_Width = quad(gauss,x0-200,x0+200,args=(params[0],params[1],params[2]))
-                chi2_width = chisq
-                peak[15] = chisq
-            '''
-            # Doublet OII
-            if x0 > 3727.0 * (1.0 + obj.z[i]) or searchLyA and (not QSOlens):
-                params2, chisq2 = obj.doubletFit(i, bounds,
-                                                 [1.0, 5.0, 1.0, x0 - 1.5, x0 + 1.5],
-                                                 [(0.1, 5.0), (1.0, 8.0), (0.1, 5.0),
-                                                  (x0 - 7.0, x0), (x0, x0 + 7.0)])
-                if  (not searchLyA and
-                     0.5 * x0 < abs(params2[3] - params2[4]) * 3726.5 < 4.0 * x0 and
-                     not (chisq2 > max_chi2)):
-                    peak.chiDoublet = chisq2
-                    peak.ampDoublet = n.array([params2[0], params2[2]])
-                    peak.varDoublet = params2[1]
-                    peak.wavDoublet = n.array([params2[3], params2[4]])
-                # TODO: clean up
-                '''
-                elif searchLyA and chisq2<chisq:
-                    peak[1] = params2[3] #x1
-                    peak[2] = params2[4] #x2
-                    peak[3] = params2[0] #amp1
-                    peak[4] = params2[2] #amp2
-                    peak[5] = params2[1] #var
-
-                    chi2_width = chisq2
-                    peak[16] = chisq2
-                elif searchLyA:
-                    peak[16] = chisq2
-                    # Delta OII restframe:  1.3 A  (3725.94 3727.24)
-                '''
-            # TODO: clean up
-            '''
-            # If looking at LAE, test a skew-normal profile as well
-            if searchLyA:
-                # Sharp blue, red tail
-                init_skew = [params[1],0.5,2,x0]
-                res_skew = minimize(chi2skew,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(1,10),(x0-4,x0+4)])
-                params_skew_a = res_skew.x
-                chisq_skew_a = res_skew.fun
-                # Double skew symmetric
-                init_skew = [params[1],0.5,-2,x0, params[1]/2,0.5,2,x0+8]
-                res_skew = minimize(chi2skew2,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-6,x0+6), (2,50),(0.0,10),(1,10),(x0-15,x0+15)])
-                params_skew_c = res_skew.x
-                chisq_skew_c = res_skew.fun
-
-                # Sharp red, blue tail
-                init_skew = [params[1],0.5,-2,x0]
-                res_skew = minimize(chi2skew,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-4,x0+4)])
-                params_skew_b = res_skew.x
-                chisq_skew_b = res_skew.fun
-
-                if chisq_skew_b < chisq_skew_a:
-                    params_skew = params_skew_b
-                    chisq_skew = chisq_skew_b
-                elif chisq_skew_a < chisq_skew_b:
-                    params_skew = params_skew_a
-                    chisq_skew = chisq_skew_a
-                if chisq_skew < chisq_skew_c:
-                    peak[7] = params_skew[0] #A
-                    peak[8] = params_skew[1] #w
-                    peak[9] = params_skew[2] #a
-                    peak[10] = params_skew[3] #eps
-                    if chisq_skew < chi2_width:
-
-                        chi2_width = chisq_skew
-                else:
-                    peak[7] = params_skew_c[0] #A1
-                    peak[8] = params_skew_c[1] #w1
-                    peak[9] = params_skew_c[2] #a1
-                    peak[10] = params_skew_c[3] #eps1
-                    peak[11] = params_skew_c[4] #A2
-                    peak[12] = params_skew_c[5] #w2
-                    peak[13] = params_skew_c[6] #a2
-                    peak[14] = params_skew_c[7] #eps2
-                    if chisq_skew_c < chi2_width:
-
-                        chi2_width = chisq_skew_c
-
-                peak[17] = chisq_skew
-                peak[18] = chisq_skew_c
-
-                #put back reduced flux by adding again 3rd order fit (plotting purpose)
-                if QSOlens:
-                    reduced_flux[i,window]= new_flux + fit_QSO(wave[window])
-            '''
+        # Fit QSO continuum and check if signal is reduced or not
+        # i.e. check if line detection is produced by large features
+        accept = False
+        if QSOlens:
+            # TODO: complete the function
+            accept = qsoContfit(obj, peak, searchLyA)
+            if not accept:
+                continue
+        # Special case: QSOlens with background galaxies
+        if (not (searchLyA or Jackpot)) and QSOlens:
+            # TODO: complete the function
+            qsoBggal(obj, peak, em_lines)
+            continue
+        # Special case: Jackpot lenses
+        if Jackpot:
+            # TODO: complete the function
+            jpLens(obj, peak, em_lines)
+            continue
+        # Singlet
+        if searchLyA:
+            init = [x0, 4.0, 6.0]
+            paramLim = [(x0 - 2.0, x0 + 2.0), (1.0, 100.0), (1.0, 15.0)]
+        elif not (searchLyA or QSOlens):
+            init = [x0, 1.0, 2.0]
+            paramLim = [(x0 - 2.0, x0 + 2.0), (0.1, 5.0), (1.0, 8.0)]
+        params, chisq = obj.singletFit(i, bounds, init, paramLim)
+        # Check for not too high chi square and save
+        if not (chisq > max_chi2 or searchLyA or QSOlens):
+            peak.wavSinglet = params[0]
+            peak.ampSinglet = params[1]
+            peak.varSinglet = params[2]
+            peak.chiSinglet = chisq
+        # TODO: clean up
+        '''
+        elif searchLyA:
+            peak.wavelength = params[0]
+            peak[2] = params[1]
+            peak[3] = params[2]
+            #eq_Width = quad(gauss,x0-200,x0+200,args=(params[0],params[1],params[2]))
+            chi2_width = chisq
+            peak[15] = chisq
+        '''
+        # Doublet OII
+        if x0 > 3727.0 * (1.0 + obj.z[i]) or searchLyA and (not QSOlens):
+            # TODO: finish the 2nd part of the function
+            doubletO2(obj, peak, searchLyA)
+        # If looking at LAE, test a skew-normal profile as well
+        if searchLyA:
+            # TODO: complete the function
+            skewFit(obj, peak)
+        # -------------------------------------------------------------
+        # Compare the fitting results
         if not (searchLyA or QSOlens or Jackpot):
             # Compare singlet and doublet fit within each peakCandidate
             for k in range(len(peak_candidates)):

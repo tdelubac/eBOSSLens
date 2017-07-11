@@ -18,6 +18,7 @@ OmegaL = 0.742
 def lorentz(x, x_0, g, A):
     return A*(g/np.pi)/((x-x_0)**2 + g**2)
 
+
 # chi2 Lorentzian
 def chi2Lorenz(params, xdata, ydata, ivar):
     return np.sum(ivar*(ydata - lorentz(x=xdata, x_0=params[0], g=params[1], A=params[2]))**2)/(len(xdata)-len(params)-1)
@@ -27,42 +28,42 @@ def chi2Lorenz(params, xdata, ydata, ivar):
 def gauss(x, x_0, A, var):
     y = A * np.exp((-(x - x_0) ** 2.0) / (2.0 * var))
     return y
+
+
 # Generate doublet
 def gauss2(x,x1,x2,A1,A2,var):
     return gauss(x,x1,A1,var) + gauss(x,x2,A2,var)
+
+
 #Skew normal profile
 def skew(x,A,w,a,eps):
     phi = 0.5*(1+sp.erf(a*(x-eps)/(w*np.sqrt(2))))
     return A*2*gauss(x,eps,1/np.sqrt(2*np.pi),w**2)*phi/w
+
+
 # Skew normal doublet profile
 def skew2(x,A1,w1,a1,eps1,A2,w2,a2,eps2):
     return skew(x,A1,w1,a1,eps1) + skew(x,A2,a2,w2,eps2)
 
+
 #Reduced Chi square for one gaussian
 def chi2g(params, xdata, ydata, ivar):
     return np.sum(ivar*(ydata - gauss(x=xdata, x_0=params[0], A=params[1], var=params[2]))**2)/(len(xdata)-len(params)-1)
+
+
 #Reduced Chi square for Doublet
 def chi2D(params, xdata, ydata, ivar):
     return np.sum(ivar*(ydata - gauss(x=xdata, x_0=params[3], A=params[0], var=params[1])-gauss(x=xdata, x_0=params[4], A=params[2], var=params[1]))**2)/(len(xdata)-len(params) -1)
+
+
 #Reduced Chi square for skew profile
 def chi2skew(params, xdata, ydata, ivar):
     return np.sum(ivar*(ydata - skew(x=xdata,A = params[0], w=params[1], a=params[2], eps = params[3]))**2)/(len(xdata)-len(params)-1)
+
+
 #Reduced Chi square for  double skew profile
 def chi2skew2(params, xdata, ydata, ivar):
     return np.sum(ivar*(ydata - skew(x=xdata,A = params[0], w=params[1], a=params[2], eps = params[3]) - skew(x=xdata, A = params[4], w = params[5], a=params[6], eps=params[7]))**2)/(len(xdata)-len(params)-1)
-
-# Check if x0 is near any emission line redshifted by z
-
-def nearline(x0, zline, fiberid, z, mjd, plate, width = 10):
-    match1 = np.logical_and(abs(zline['linewave']*(1+z) -x0) < width, zline['lineew']/zline['lineew_err'] > 6)
-
-    match2 = np.logical_and(zline['fiberid']==fiberid,zline['mjd']==int(mjd))
-    match3 = np.logical_and(zline['plate']==int(plate), zline['lineew_err']>0)
-    match4 = np.logical_and(match1,np.logical_and(match2,match3))
-    if (np.sum(match4)>0):
-        return True
-    else:
-        return False
 
 
 # Gaussian kernel used in first feature search (Bolton et al.,2004 method)
@@ -71,28 +72,7 @@ def kernel(j, width, NormGauss, length):
     ker[int(j - width * 0.5):int(j + width * 0.5)] = NormGauss
     return ker
 
-# Estimated Einstein Radius from Single Isothermal Sphere (SIS) model
-def radEinstein(z1,z2,vdisp):
-    #compute ang. diam. distances
-    Ds = ((c/H0)*quad(x12,0.0,z2)[0])/(1+z2)
-    Dls = ((c/H0)*quad(x12,z1,z2)[0])/(1+z2)
-    ### return value in arcsec
-    coeff = 3600*(180/np.pi)
-    return coeff*4.0*np.pi*vdisp*vdisp*Dls/(c*c*Ds)
 
-#Function needed for numerical computation of angular diameter distance
-def x12(z):
-    return 1.0/np.sqrt((1-OmegaM-OmegaL)*(1+z)*(1+z) + OmegaM*(1+z)**3 + OmegaL)
-
-#Convert wavelength to bin number
-def wave2bin(x,c0,c1,Nmax):
-    b = int((np.log10(x)/c1)-c0/c1)
-    if b <= 0:
-        return 0
-    elif b >= Nmax:
-        return Nmax
-    else:
-        return b
 #Give BOSS approximated resolution as a function of wavelength
 def resolution(x):
     if 4000<x<5800:
@@ -109,6 +89,7 @@ def resolution(x):
         return a*x+b
     else:
         return 2500
+
 
 #Prepare the flux in the BOSS bins starting from MC template/any datapoints array
 def template_stretch(template_x, template_y, xdata, x0,A,B,eps):
@@ -128,12 +109,14 @@ def template_stretch(template_x, template_y, xdata, x0,A,B,eps):
     gaussian_kernel = gauss(template_x,x_0=x0+eps,A=1/np.sqrt(sigma*2*np.pi),var=sigma**2)
     template_y = np.convolve(template_y*A, gaussian_kernel, mode = 'same')
     interpol = interpolate.interp1d(template_x,template_y, kind ='linear')
-
     return interpol(xdata)
+
+
 # Compute the chi2 any template template
 def chi2template(params,xdata,ydata, template_x, template_y, x0, ivar):
     y_fit = template_stretch(template_x, template_y, xdata, x0, params[0],params[1],params[2])
     return np.sum(ivar*(ydata - y_fit)**2)/(len(xdata)-len(params)-1)
+
 
 #Transform RA DEC to SDSS name
 def SDSSname(RA,DEC):
@@ -151,6 +134,7 @@ def SDSSname(RA,DEC):
         return'SDSS J'+'{:02}'.format(HH)+'{:02}'.format(MM)+'{:05.2f}'.format(SS)+'-'+'{:02}'.format(DD)+'{:02}'.format(MM_dec)+'{:04.1f}'.format(SS_dec)
     else:
         return 'SDSS J'+'{:02}'.format(HH)+'{:02}'.format(MM)+'{:05.2f}'.format(SS)+'+'+'{:02}'.format(DD)+'{:02}'.format(MM_dec)+'{:04.1f}'.format(SS_dec)
+
 
 # Check if a path exists, if not make it
 def make_sure_path_exists(path):

@@ -8,13 +8,14 @@
 
 
 # Imports
-import itertools as it
 import numpy as n
 from SDSSObject import SDSSObject
 from objFilter import qsoFilter, genFilter
 from peakFinder import bolEstm, peakCandidate, combNear, checkFore, \
     qsoContfit, qsoBggal, jpLens, doubletO2, skewFit
+from resultSave import galSave
 from utils import gauss
+from utils_Gal import plot_GalaxyLens
 
 
 '''
@@ -55,7 +56,7 @@ savedir = "../Meyer2016"
 
 def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
               wMask=wMask, em_lines=em_lines):
-    obj = SDSSObject(plate, mjd, fiberid)
+    obj = SDSSObject(plate, mjd, fiberid, "v5_7_0", "../SCRATCH")
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
     # Filter out unwanted spectras
@@ -78,7 +79,7 @@ def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
     else:
         width = 30.0
         sig = 1.2
-    SN = bolEstm(obj, width, sig)
+    SN = bolEstm(obj, sig, width)
     # Filter out invalid sources
     if not (searchLyA or QSOlens):
         peak_candidates = n.array([peakCandidate(x0, test)
@@ -107,7 +108,7 @@ def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
     # --------------------------------------------------------------------------
     # Search for suitable peak candidates
     for peak in peak_candidates:
-        x0 = peak.wavSinglet
+        x0 = peak.wavelength
         if obj.nearLine(x0):
             continue
         x0Bin = obj.wave2bin(x0)
@@ -157,12 +158,11 @@ def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
         # Doublet OII
         if x0 > 3727.0 * (1.0 + obj.z) or searchLyA and (not QSOlens):
             # TODO: finish the 2nd part of the function
-            doubletO2(obj, peak, searchLyA)
+            doubletO2(obj, peak, bounds, searchLyA, max_chi2)
         # If looking at LAE, test a skew-normal profile as well
         if searchLyA:
             # TODO: complete the function
             skewFit(obj, peak)
-    # -------------------------------------------------------------
     # Compare the fitting results
     if not (searchLyA or QSOlens or Jackpot):
         # Compare singlet and doublet fit within each peakCandidate
@@ -175,7 +175,7 @@ def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
         peak_candidates = n.array([peak for peak in peak_candidates if
                                    (peak.chi != 1000.0)])
         if len(peak_candidates) == 0:
-            continue
+            raise Exception("Rejected since no candidates")
         # Sorting candidates by chi square
         peak_candidates = sorted(peak_candidates, key=lambda peak: peak.chi)
         # Keeping only 5 most likely candidates
@@ -207,7 +207,7 @@ def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
             peak_candidates = peak_candidates[0:3]
     '''
     if len(peak_candidates) == 0:
-        continue
+        raise Exception("Rejected since all is lost")
     # Check that at least 1 candidate is below 9200 Angstrom cut
     below_9500 = False
     for peak in peak_candidates:
@@ -215,68 +215,12 @@ def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
             below_9500 = True
             break
     if not below_9500:
-        continue
+        raise Exception("Rejected since no below 9200")
     # Try to infer background redshift
     detection = False
-    score = 0.0
     if not (searchLyA or QSOlens or Jackpot):
-        if doublet:
-            fileD = open(savedir + '/candidates_doublet.txt', 'a')
-            z_s = peak_candidates[doublet_index].wavelength / 3727.24 - 1.0
-            if (z_s > obj.z + 0.05):
-                detection = True
-                score += peak_candidates[doublet_index].chi
-                fileD.write(str(obj.radEinstein(z_s)) + " " + str(score) +
-                            " " + str(z_s) + " " + str(obj.RA) + " " +
-                            str(obj.DEC) + " " + str(plate) + " " +
-                            str(mjd) + " " + str(fiberid) + " " +
-                            str(peak_candidates[doublet_index].wavDoublet[0]))
-            fileD.close()
-            if len(peak_candidates):
-                fileDM = open(savedir + '/candidates_DM.txt', 'a')
-                confirmed_lines = []
-                # Generating all combinations of lines from above list to
-                # compare with candidates
-                temp = [peak for peak in peak_candidates
-                        if peak.chi != peak.chiDoublet]
-                compare = em_lines[1: 5]
-                if z_s > obj.z + 0.05:
-                    for peak in temp:
-                        for line in compare:
-                            if abs(peak.wavelength/line - 1.0 - z_s) < 0.01:
-                                detection = True
-                                confirmed_lines.append(line)
-                                score += peak.chiDoublet
-                if confirmed_lines != []:
-                    fileDM.write(str(obj.radEinstein(z_s)) + " " + str(score) +
-                                 " " + str(z_s) + " " + str(obj.RA) + " " +
-                                 str(obj.DEC) + " " + str(plate) + " " +
-                                 str(mjd) + " " + str(fiberid) +
-                                 " ".join(confirmed_lines))
-                fileDM.close()
-        elif len(peak_candidates) > 1:
-            compare = it.combinations(em_lines, len(peak_candidates))
-            confirmed_lines = []
-            fileM = open(savedir + '/candidates_multi.txt', 'a')
-            for group in compare:
-                for k in range(len(peak_candidates)):
-                    for j in range(k + 1, len(peak_candidates)):
-                        crit1 = peak_candidates[k].wavelength / group[k]
-                        crit2 = crit1 - peak_candidates[j].wavelength / group[j]
-                        if abs(crit2) < 0.01 and crit1 - 1.05 > obj.z:
-                            detection = True
-                            z_s = peak_candidates[k][0] / group[k] - 1.0
-                            confirmed_lines.append([group,
-                                                    peak_candidates[k][0] /
-                                                    group[k] - 1.0])
-                            score += peak_candidates[j].chi ** 2.0 + \
-                                peak_candidates[k].chi ** 2.0
-            if (confirmed_lines != []):
-                fileM.write(str(obj.radEinstein(z_s)) + " " + str(score) + " " +
-                            str(z_s) + " " + str(obj.RA) + " " + str(obj.DEC) +
-                            " " + str(plate) + " " + str(mjd) + " " +
-                            str(fiberid) + " ".join(confirmed_lines))
-            fileM.close()
+        detection = galSave(obj, peak_candidates, doublet_index, savedir,
+                            em_lines)
     # TODO: clean up
     '''
     elif searchLyA == False and QSOlens == True and Jackpot==False:
@@ -402,12 +346,11 @@ def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
                               peak.varSinglet])
         peak_number = len(peak_candidates)
         # Graphs OII doublet
-        if (peak_number>1 or doublet==True) and below_9500 and detection:
+        if (peak_number > 1 or doublet) and below_9500 and detection:
             # Computing total fit of all peaks
-            fit = 0
+            fit = 0.0
             for k in n.arange(len(peaks)):
                 fit = fit + gauss(obj.wave, x_0=peaks[k][0], A=peaks[k][1],
                                   var=peaks[k][2])
-            plot_GalaxyLens(doublet = doublet, RA = RA[i],DEC = DEC[i],plate = plate,fiberid=fiberid[i],mjd=mjd,z=z[i],z_err =z_err[i], \
-                obj_class = obj_class[i],wave = wave, reduced_flux=reduced_flux[i,:], zline = zline, fit = fit,topdir = topdir, savedir = savedir, peak_candidates =peak_candidates, \
-                doublet_index = doublet_index, c0 = c0,c1 = c1,Nmax = Nmax, show = plot_show)
+            plot_GalaxyLens(doublet, obj, savedir, peak_candidates,
+                            doublet_index, fit)

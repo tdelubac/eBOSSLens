@@ -103,15 +103,16 @@ def checkFore(pcList, emLines, z):
     return foreground_z
 
 
-def bolEstm(i, obj, sig, width):
+def bolEstm(obj, sig, width):
     NormGauss = gauss(np.linspace(-width * 0.5, width * 0.5, width), 0.0, 1.0,
                       sig ** 2.0)
     NormGauss = NormGauss / np.sum(NormGauss)
-    allKer = np.array([kernel(j + 0.5 * width, width, NormGauss, len(obj.wave))
-                       for j in range(int(len(obj.wave)) - width)])
-    Cj1 = np.array([np.sum(each * obj.reduced_flux[i, :] * obj.ivar[i, :])
-                    for each in allKer])
-    Cj2 = np.array([np.sum(obj.ivar[i, :] * each ** 2.0) for each in allKer])
+    Cj1 = np.array([np.sum(kernel(j + 0.5 * width, width, NormGauss,
+                                  len(obj.wave)) * obj.reduced_flux * obj.ivar)
+                    for j in range(int(len(obj.wave) - width))])
+    Cj2 = np.array([np.sum(obj.ivar * kernel(j + 0.5 * width, width, NormGauss,
+                                             len(obj.wave)) ** 2.0)
+                    for j in range(int(len(obj.wave) - width))])
     SN = np.zeros(len(obj.wave))
     SN[int(width * 0.5): int(width * 0.5 + len(Cj1))] = Cj1 / np.sqrt(Cj2)
     return SN
@@ -163,53 +164,53 @@ def jpLens(obj, peak, em_lines, mask_width_Jackpot = 50):
     # TODO: complete the function/parameters
     '''
     first_lens = False
-	peak[5] = peak[6]
-	peak[4] = peak[6]
-	for l in em_lines:
-		test_z = peak[0]/l -1.0
-		if test_z > z[i]+0.05:
-			quad_SN_1 = peak[6]
-			for w in em_lines:
-				if w*(1+test_z) < 9500:
-					center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
-					SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z), zline, fiberid[i], z[i], int(mjd), int(plate), mask_width_Jackpot)))
-					quad_SN_1 += max(SN_line*(SN_line>0))**2
-			quad_SN_1 = n.sqrt(quad_SN_1)
-			if quad_SN_1 > peak[6] + 6:
-				peak[5] = quad_SN_1
-				peak[2] = test_z 
-				first_lens = True
-	if first_lens:
-		for peak2 in peak_candidates:
-			if n.abs(peak2[0]- peak[0])> 30:
-				for l in em_lines:
-					test_z_2 = peak2[0]/l -1.0
-					if test_z_2 > z[i]+ 0.05 and abs(peak[2]-test_z_2)> 0.05:
-						quad_SN_2 = 0.0
-						for w in em_lines:
-							if w*(1+test_z_2) < 9500:
-								center_bin = wave2bin(w*(1+test_z_2),c0,c1,Nmax)
-								SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z_2), zline, fiberid[i], z[i], int(mjd), int(plate),mask_width_Jackpot)))
-								quad_SN_2 += max(SN_line*(SN_line>0))**2
-						quad_SN_2 = n.sqrt(quad_SN_2)
-						if quad_SN_2 > peak[5] + 6:
-							peak[4] = quad_SN_2
-							peak[3] = test_z_2
-	'''
+    peak[5] = peak[6]
+    peak[4] = peak[6]
+    for l in em_lines:
+        test_z = peak[0]/l -1.0
+        if test_z > z[i]+0.05:
+            quad_SN_1 = peak[6]
+            for w in em_lines:
+                if w*(1+test_z) < 9500:
+                    center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
+                    SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z), zline, fiberid[i], z[i], int(mjd), int(plate), mask_width_Jackpot)))
+                    quad_SN_1 += max(SN_line*(SN_line>0))**2
+            quad_SN_1 = n.sqrt(quad_SN_1)
+            if quad_SN_1 > peak[6] + 6:
+                peak[5] = quad_SN_1
+                peak[2] = test_z
+                first_lens = True
+    if first_lens:
+        for peak2 in peak_candidates:
+            if n.abs(peak2[0]- peak[0])> 30:
+                for l in em_lines:
+                    test_z_2 = peak2[0]/l -1.0
+                    if test_z_2 > z[i]+ 0.05 and abs(peak[2]-test_z_2)> 0.05:
+                        quad_SN_2 = 0.0
+                        for w in em_lines:
+                            if w*(1+test_z_2) < 9500:
+                                center_bin = wave2bin(w*(1+test_z_2),c0,c1,Nmax)
+                                SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z_2), zline, fiberid[i], z[i], int(mjd), int(plate),mask_width_Jackpot)))
+                                quad_SN_2 += max(SN_line*(SN_line>0))**2
+                        quad_SN_2 = n.sqrt(quad_SN_2)
+                        if quad_SN_2 > peak[5] + 6:
+                            peak[4] = quad_SN_2
+                            peak[3] = test_z_2
+    '''
 
 
-def doubletO2(obj, peak):
-    x0 = obj.wavelength
-    params2, chisq2 = obj.doubletFit(i, bounds,
+def doubletO2(obj, peak, bounds, searchLyA, max_chi2):
+    x0 = peak.wavelength
+    params2, chisq2 = obj.doubletFit(bounds,
                                      [1.0, 5.0, 1.0, x0 - 1.5, x0 + 1.5],
                                      [(0.1, 5.0), (1.0, 8.0), (0.1, 5.0),
                                       (x0 - 7.0, x0), (x0, x0 + 7.0)])
     if ((not (searchLyA or chisq2 > max_chi2)) and
         0.5 * x0 < abs(params2[3] - params2[4]) * 3726.5 < 4.0 * x0):
         peak.chiDoublet = chisq2
-        peak.ampDoublet = n.array([params2[0], params2[2]])
+        peak.ampDoublet = np.array([params2[0], params2[2]])
         peak.varDoublet = params2[1]
-        peak.wavDoublet = n.array([params2[3], params2[4]])
+        peak.wavDoublet = np.array([params2[3], params2[4]])
     # TODO: complete the 2nd part of the function
     '''
     elif searchLyA and chisq2<chisq:
@@ -227,8 +228,8 @@ def doubletO2(obj, peak):
 
 
 def skewFit(obj, peak):
-	# TODO: complete the function/parameters
-	'''
+    # TODO: complete the function/parameters
+    '''
                 # Sharp blue, red tail
                 init_skew = [params[1],0.5,2,x0]
                 res_skew = minimize(chi2skew,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(1,10),(x0-4,x0+4)])
@@ -279,7 +280,7 @@ def skewFit(obj, peak):
                 #put back reduced flux by adding again 3rd order fit (plotting purpose)
                 if QSOlens:
                     reduced_flux[i,window]= new_flux + fit_QSO(wave[window])
-	'''
+    '''
 
 
 

@@ -44,7 +44,9 @@ def genFilter(obj):
     Returns:
         True for accept, False for reject
     '''
-    if obj.obj_class[i].startswith('STAR') or obj.obj_class[i].startswith('QSO') or \
-                    obj.obj_type[i].startswith('SKY') or \
-                    obj.obj_type[i].startswith('SPECTROPHOTO_STD'):
+    if obj.obj_class.startswith('STAR') or obj.obj_class.startswith('QSO') or \
+                    obj.obj_type.startswith('SKY') or \
+                    obj.obj_type.startswith('SPECTROPHOTO_STD'):
         return False
+    else:
+        return True

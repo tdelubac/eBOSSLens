@@ -13,7 +13,7 @@ class SDSSObject():
     A class for SDSS BOSS or eBOSS objects. Note that each fiberid will also
     be separated for better serialization
     '''
-    def __init__(self, mjd, plate, fid, dataVersion, baseDir="/SCRATCH"):
+    def __init__(self, plate, mjd, fid, dataVersion, baseDir="/SCRATCH"):
         # Data version check
         if dataVersion == "v5_7_0" or dataVersion == "v5_7_2":
             flag = "BOSS"
@@ -31,8 +31,10 @@ class SDSSObject():
         hdulist = pf.open(zbFile)
         fiberidList = hdulist[1].data.field('FIBERID')
         hdulist.close()
-        findex = np.argwhere(fiberidList == fid)[0]
+        findex = np.argwhere(fiberidList == fid)[0][0]
         self.fiberid = fid
+        self.mjd = mjd
+        self.plate = plate
         # Load data from spPlate
         hdulist = pf.open(spFile)
         self.c0 = hdulist[0].header['coeff0']
@@ -61,8 +63,7 @@ class SDSSObject():
         hdulist = pf.open(zlFile)
         zlineList = hdulist[1].data
         hdulist.close()
-        zlineIndex = np.where(zlineList['fiberid'] == findex)
-        self.zline = zlineList[zlineIndex]
+        self.zline = zlineList[np.where(zlineList['fiberid'] == self.fiberid)]
         # Additional processing
         self.reduced_flux = self.flux - self.synflux
         self.nMax = len(self.flux)
@@ -74,19 +75,15 @@ class SDSSObject():
         Return the accordinf bin of given waveLength
 
         Paramters:
-            waveLength: given wavelength to convert (float or numpy.array)
+            waveLength: given wavelength to convert (float)
         Returns:
             b: the bin of the given wavelength (same type as waveLength)
         '''
         b = int((np.log10(waveLength) / self.c1) - self.c0 / self.c1)
-        try:
-            b[b < 0] = 0
-            b[b > self.nMax] = self.nMax
-        except Exception:
-            if b < 0:
-                b = 0
-            elif b > self.nMax:
-                b = self.nMax
+        if b < 0:
+            b = 0
+        elif b > self.nMax:
+            b = self.nMax
         return b
 
     def mask(self, lineList):
@@ -101,22 +98,21 @@ class SDSSObject():
             None
         '''
         for each in lineList:
-            maskRange = self.wave2bin(each)
-            self.ivar[maskRange[0]: maskRange[1]] = 0
+            self.ivar[self.wave2bin(each[0]): self.wave2bin(each[1])] = 0
 
     def nearLine(self, x0, width=10.0):
         '''
         nearLine(mjd, plate, i, x0, obj, width=10.0)
         ============================================
         Whether given wavelength is near a masked or not
-    
+
         Parameters:
             x0: given wavelength
             width: default 10.0, a parameter for nearness
         Returns:
             a boolean of whether near or not
         '''
-        crit = ()
+        crit = []
         crit.append(abs(self.zline['linewave'] * (1 + self.z) - x0) < width)
         crit.append(self.zline['lineew'] / self.zline['lineew_err'] > 6.0)
         crit.append(self.zline['lineew_err'] > 0)
@@ -165,7 +161,7 @@ class SDSSObject():
                                                self.ivar[bounds]),
                        method='SLSQP', bounds=paramLim)
         return res.x, res.fun
-   
+
     def radEinstein(self, zs):
         '''
         SDSSObject.radEinstein(z1, z2)
@@ -183,12 +179,14 @@ class SDSSObject():
         OmegaM = 0.258
         OmegaL = 0.742
         vdisp = self.vdisp * 1000.0
-		# Function needed for numerical computation of angular diameter distance
-		def x12(z):
-    		return 1.0 / np.sqrt((1.0 - OmegaM - OmegaL) * (1.0 + z) * (1.0 + z) + OmegaM * (1.0 + z) ** 3.0 + OmegaL)
-        #compute ang. diam. distances
+
+        # Function needed for numerical computation of angular diameter distance
+        def x12(z):
+            return 1.0 / np.sqrt((1.0 - OmegaM - OmegaL) * (1.0 + z) *
+                                 (1.0 + z) + OmegaM * (1.0 + z) ** 3.0 + OmegaL)
+        # compute ang. diam. distances
         Ds = ((c / H0) * quad(x12, 0.0, zs)[0]) / (1.0 + zs)
         Dls = ((c / H0) * quad(x12, self.z, zs)[0]) / (1.0 + zs)
-        ### return value in arcsec
+        # return value in arcsec
         coeff = 3600.0 * (180.0 / np.pi)
         return coeff * 4.0 * np.pi * vdisp * vdisp * Dls / (c * c * Ds)

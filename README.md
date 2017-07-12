@@ -1,7 +1,8 @@
 # eBOSSLens
-## Currently under refactoring. Please do not use.
+## Currently under refactoring. Galaxy lensing should be working. 
+## Use at own risk
 
 ## TO-DO list:
-* "Objectify" the code
-* Redo input and output for parallel computation
-* Try to optimize the code for parallel computation
+* Complete objectifing the code for QSO, LyA, jackpot lensing
+* Further improve in parameter configuration
+* Write a better document

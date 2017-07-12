@@ -35,6 +35,8 @@ class SDSSObject():
         self.fiberid = fid
         self.mjd = mjd
         self.plate = plate
+        self.dataVersion = dataVersion
+        self.baseDir = baseDir
         # Load data from spPlate
         hdulist = pf.open(spFile)
         self.c0 = hdulist[0].header['coeff0']

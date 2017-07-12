@@ -13,9 +13,8 @@ from SDSSObject import SDSSObject
 from objFilter import qsoFilter, genFilter
 from peakFinder import bolEstm, peakCandidate, combNear, checkFore, \
     qsoContfit, qsoBggal, jpLens, doubletO2, skewFit
-from resultSave import galSave
+from resultSave import galSave, plotGalaxyLens
 from utils import gauss
-from utils_Gal import plot_GalaxyLens
 
 
 # Currently unused, but might be useful parameters
@@ -332,5 +331,5 @@ def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
             for k in n.arange(len(peaks)):
                 fit = fit + gauss(obj.wave, x_0=peaks[k][0], A=peaks[k][1],
                                   var=peaks[k][2])
-            plot_GalaxyLens(doublet, obj, savedir, peak_candidates,
-                            doublet_index, fit)
+            plotGalaxyLens(doublet, obj, savedir, peak_candidates,
+                           doublet_index, fit)

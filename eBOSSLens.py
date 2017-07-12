@@ -18,34 +18,15 @@ from utils import gauss
 from utils_Gal import plot_GalaxyLens
 
 
+# Currently unused, but might be useful parameters
 '''
-# Never show plot
-plot_show = False
-# Operation mode
-searchLyA = False
-QSOlens = False
-paper = True
-Jackpot = False
-# Data version
-dataVersion = args.dataVersion
-# Max chi2 for gaussian/ doublet fitting OII
-setWidth = args.width
-setSig = args.sig
-max_chi2 = args.chi2
-# Set savedir:
-baseDir = "/SCRATCH"
-# Give file in [plate mjd] format of plates you want to inspect
-plates_list = 'list_QSOGal.txt'
-# Set of emission lines used for lensed galaxy detection: OII, Hb, OIII,
-# OIII, Ha
 # Typical mask width
 l_width = 15
 # TODO: clean up
 l_LyA = 1215.668
 '''
-
-
-# Emission lines
+# Set of emission lines used for lensed galaxy detection:
+# OII, Hb, OIII, Ha
 em_lines = n.array([3726.5, 4861.325, 4958.911, 5006.843, 6562.801])
 # Waves for mask
 wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
@@ -55,7 +36,7 @@ savedir = "../Meyer2016"
 
 
 def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
-              wMask=wMask, em_lines=em_lines):
+              wMask=wMask, em_lines=em_lines, bwidth=30.0, bsig=1.2):
     obj = SDSSObject(plate, mjd, fiberid, "v5_7_0", "../SCRATCH")
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
@@ -68,17 +49,15 @@ def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
         accept = genFilter(obj)
     if not accept:
         raise Exception("Rejected by filter")
-    # --------------------------------------------------------------------------
     # Find peaks
-    peaks = []
     doublet = None
     # Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks
     if searchLyA:
         width = 30.0
         sig = 2.17
     else:
-        width = 30.0
-        sig = 1.2
+        width = bwidth
+        sig = bsig
     SN = bolEstm(obj, sig, width)
     # Filter out invalid sources
     if not (searchLyA or QSOlens):
@@ -219,8 +198,8 @@ def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
     # Try to infer background redshift
     detection = False
     if not (searchLyA or QSOlens or Jackpot):
-        detection = galSave(obj, peak_candidates, doublet_index, savedir,
-                            em_lines)
+        detection = galSave(doublet, obj, peak_candidates, doublet_index,
+                            savedir, em_lines)
     # TODO: clean up
     '''
     elif searchLyA == False and QSOlens == True and Jackpot==False:
@@ -331,6 +310,7 @@ def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
         fileLyA.close()
         '''
     # Save surviving candidates (Galaxy-Galaxy case)
+    peaks = []
     if not (searchLyA or QSOlens or Jackpot):
         for k in range(len(peak_candidates)):
             peak = peak_candidates[k]

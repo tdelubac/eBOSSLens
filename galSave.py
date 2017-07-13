@@ -1,7 +1,7 @@
 import os
 import itertools as it
 import numpy as np
-from utils import make_sure_path_exists
+from utils import make_sure_path_exists, gauss
 from SDSSObject import SDSSObject
 # Matplotlib trick
 import matplotlib
@@ -9,9 +9,16 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
 
-def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines):
+def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
+            prodCrit=10.0):
     detection = False
+    preProd = 1.0
+    nxtProd = 1.0
     if doublet:
+        if len(peak_candidates):
+            preProd, nxtProd = compSpec(obj, peak_candidates[doublet_index])
+            if preProd > prodCrit or nxtProd > prodCrit:
+                raise Exception("Rejected by comparing to other fibers")
         z_s = peak_candidates[doublet_index].wavelength / 3727.24 - 1.0
         detection = _doubletSave(obj, z_s, peak_candidates, doublet_index,
                                  savedir)
@@ -20,7 +27,24 @@ def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines):
                                      detection, em_lines)
     elif len(peak_candidates) > 1:
         detection = _multletSave(obj, peak_candidates, savedir, em_lines)
-    return detection
+    peaks = []
+    for k in range(len(peak_candidates)):
+        peak = peak_candidates[k]
+        if k == doublet_index and doublet:
+            peaks.append([peak.wavDoublet[0], peak.ampDoublet[0],
+                          peak.varDoublet])
+            peaks.append([peak.wavDoublet[1], peak.ampDoublet[1],
+                          peak.varDoublet])
+        else:
+            peaks.append([peak.wavSinglet, peak.ampSinglet, peak.varSinglet])
+    peak_number = len(peak_candidates)
+    if (peak_number > 1 or doublet) and detection:
+        fit = 0.0
+        for k in np.arange(len(peaks)):
+            fit = fit + gauss(obj.wave, x_0=peaks[k][0], A=peaks[k][1],
+                              var=peaks[k][2])
+        plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd,
+                       nxtProd, doublet_index, fit)
 
 
 def _doubletSave(obj, z_s, peak_candidates, doublet_index, savedir):
@@ -93,7 +117,8 @@ def _multletSave(obj, peak_candidates, savedir, em_lines):
     return detection
 
 
-def plotGalaxyLens(doublet, obj, savedir, peak_candidates, doublet_index, fit):
+def plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd, nxtProd,
+                   doublet_index, fit):
     if not doublet:
         ax = plt.subplot(1, 1, 1)
         plt.title('RA=' + str(obj.RA) + ', Dec=' + str(obj.DEC) + ', Plate=' +
@@ -116,7 +141,8 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, doublet_index, fit):
                              obj.wave2bin(x_doublet) + 10, 21, dtype=np.int16)
         f = open(os.path.join(savedir, 'doublet_ML.txt'), 'a')
         f.write(str(obj.plate) + ' ' + str(obj.mjd) + ' ' + str(obj.fiberid) +
-                " " + str(obj.reduced_flux[bounds]))
+                ' ' + str(preProd) + ' ' + str(nxtProd) + ' ' +
+                str(obj.reduced_flux[bounds]) + "\n")
         f.close()
         plt.figure(figsize=(14, 6))
         ax1 = plt.subplot2grid((1, 3), (0, 0), colspan=2)
@@ -156,3 +182,29 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, doublet_index, fit):
                                  str(obj.mjd) + '-' + str(obj.fiberid) +
                                  '.png'))
         plt.close()
+
+
+def compSpec(obj, peak, width=2.0):
+    bounds = np.arange(obj.wave2bin(peak.wavDoublet[0] - width *
+                                    np.sqrt(peak.varDoublet)),
+                       obj.wave2bin(peak.wavDoublet[1] + width *
+                                    np.sqrt(peak.varDoublet)), 1.0, dtype=int)
+    nowFlux = obj.reduced_flux[bounds]
+    nowLeng = np.sqrt(np.dot(nowFlux, nowFlux))
+    if obj.fiberid != 1:
+        objPre = SDSSObject(obj.plate, obj.mjd, obj.fiberid - 1,
+                            obj.dataVersion, obj.baseDir)
+        preFlux = objPre.reduced_flux[bounds]
+        preLeng = np.sqrt(np.dot(preFlux, preFlux))
+        preProd = np.dot(preFlux, nowFlux) / (preLeng * nowLeng)
+    else:
+        preProd = 0.0
+    if obj.fiberid != 1000:
+        objNxt = SDSSObject(obj.plate, obj.mjd, obj.fiberid + 1,
+                            obj.dataVersion, obj.baseDir)
+        nxtFlux = objNxt.reduced_flux[bounds]
+        nxtLeng = np.sqrt(np.dot(nxtFlux, nxtFlux))
+        nxtProd = np.dot(nxtLeng, nxtLeng) / (nxtLeng * nowLeng)
+    else:
+        nxtProd = 0.0
+    return preProd, nxtProd

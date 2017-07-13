@@ -33,13 +33,12 @@ em_lines = n.array([3726.5, 4861.325, 4958.911, 5006.843, 6562.801])
 # Waves for mask
 wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
                  [6348.0, 6378.0]])
-# Save dir
-savedir = "../Meyer2016"
 
 
-def eBOSSLens(plate, mjd, fiberid, searchLyA, QSOlens, Jackpot, max_chi2=4.0,
-              wMask=wMask, em_lines=em_lines, bwidth=30.0, bsig=1.2):
-    obj = SDSSObject(plate, mjd, fiberid, "v5_7_0", "../SCRATCH")
+def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
+              datadir, max_chi2=4.0, wMask=wMask, em_lines=em_lines,
+              bwidth=30.0, bsig=1.2):
+    obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
     # Filter out unwanted spectras

@@ -18,14 +18,15 @@ def para_return(func, params, num_thread=4):
     return res_list
 
 
-def lensFinder(plate, mjd, fiberid, datav='v5_7_0', datadir='/SCRATCH'):
+def lensFinder(plate, mjd, fiberid, datav='v5_7_0', datadir='../SCRATCH'):
     savedir = os.path.join('../FullSearch', str(plate) + "-" + str(mjd))
     make_sure_path_exists(savedir)
     try:
-        eBOSSLens(plate, mjd, each, datav, False, False, False, savedir,
+        eBOSSLens(plate, mjd, fiberid, datav, False, False, False, savedir,
                   datadir)
     except Exception as reason:
         print(reason)
+
 
 if __name__ == "__main__":
     '''
@@ -42,10 +43,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     eBOSSLens(args.plate, args.mjd, args.fiberid, False, False, False)
     '''
-    platemjd = np.loadtxt('plate-mjd.txt')
+    platemjd = np.loadtxt('plate-mjd.txt', dtype=int)
     for each in platemjd:
         fiberid = np.arange(1, 1001, 1, dtype=int)
         args = []
         for fid in fiberid:
             args.append((each[0], each[1], fid,))
-        res = para_return(lensFinder, args, 16)
+        res = para_return(lensFinder, args, 12)
+    # lensFinder(6739, 56393, 272)

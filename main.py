@@ -18,8 +18,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     eBOSSLens(args.plate, args.mjd, args.fiberid, False, False, False)
     '''
-    plate = 6739
-    mjd = 56393
+    plate = 4391
+    mjd = 55866
     fiberid = np.arange(1, 1000, 1, dtype=int)
     for each in fiberid:
         try:

@@ -1,3 +1,4 @@
+import os
 import itertools as it
 import numpy as np
 from utils import make_sure_path_exists
@@ -25,7 +26,7 @@ def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines):
 def _doubletSave(obj, z_s, peak_candidates, doublet_index, savedir):
     score = 0.0
     detection = False
-    fileD = open(savedir + '/candidates_doublet.txt', 'a')
+    fileD = open(os.path.join(savedir, 'candidates_doublet.txt'), 'a')
     if z_s > obj.z + 0.05:
         detection = True
         score += peak_candidates[doublet_index].chi
@@ -43,7 +44,7 @@ def _dblmultSave(obj, z_s, peak_candidates, savedir, detection, em_lines):
     confirmed_lines = []
     score = 0.0
     det = detection
-    fileM = open(savedir + '/candidates_DM.txt', 'a')
+    fileM = open(os.path.join(savedir, 'candidates_DM.txt'), 'a')
     # Generating all combinations of lines from above list to compare with
     # candidates
     temp = [peak for peak in peak_candidates if peak.chi != peak.chiDoublet]
@@ -69,7 +70,7 @@ def _multletSave(obj, peak_candidates, savedir, em_lines):
     score = 0.0
     detection = False
     compare = it.combinations(em_lines, len(peak_candidates))
-    fileM = open(savedir + '/candidates_multi.txt', 'a')
+    fileM = open(os.path.join(savedir, 'candidates_multi.txt'), 'a')
     for group in compare:
         for k in range(len(peak_candidates)):
             for j in range(k + 1, len(peak_candidates)):
@@ -113,7 +114,7 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, doublet_index, fit):
         x_doublet = np.mean(peak_candidates[doublet_index].wavDoublet)
         bounds = np.linspace(obj.wave2bin(x_doublet) - 10,
                              obj.wave2bin(x_doublet) + 10, 21, dtype=np.int16)
-        f = open(savedir + '/doublet_ML.txt', 'a')
+        f = open(os.path.join(savedir, 'doublet_ML.txt'), 'a')
         f.write(str(obj.plate) + ' ' + str(obj.mjd) + ' ' + str(obj.fiberid) +
                 " " + str(obj.reduced_flux[bounds]))
         f.close()
@@ -150,7 +151,8 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, doublet_index, fit):
                                 obj.dataVersion, obj.baseDir)
             ax2.plot(objNxt.wave, objNxt.reduced_flux, 'g')
         # Save to file
-        make_sure_path_exists(savedir + '/plots/')
-        plt.savefig(savedir + '/plots/' + str(obj.plate) + '-' + str(obj.mjd) +
-                    '-' + str(obj.fiberid) + '.png')
+        make_sure_path_exists(os.path.join(savedir, 'plots'))
+        plt.savefig(os.path.join(savedir, 'plots', str(obj.plate) + '-' +
+                                 str(obj.mjd) + '-' + str(obj.fiberid) +
+                                 '.png'))
         plt.close()

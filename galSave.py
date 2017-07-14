@@ -184,7 +184,7 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd, nxtProd,
         plt.close()
 
 
-def compSpec(obj, peak, width=2.0):
+def compSpec(obj, peak, width=3.0):
     bounds = np.arange(obj.wave2bin(peak.wavDoublet[0] - width *
                                     np.sqrt(peak.varDoublet)),
                        obj.wave2bin(peak.wavDoublet[1] + width *

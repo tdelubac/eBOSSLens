@@ -18,9 +18,10 @@ def para_return(func, params, num_thread=4):
     return res_list
 
 
-def lensFinder(plate, mjd, fiberid, datav='v5_7_0', datadir='../SCRATCH'):
+def lensFinder(plate, mjd, fiberid, datav='v5_7_0', datadir='/SCRATCH'):
     savedir = os.path.join('../FullSearch', str(plate) + "-" + str(mjd))
     make_sure_path_exists(savedir)
+    print(str(plate) + " " + str(mjd) + " " + str(fiberid))
     try:
         eBOSSLens(plate, mjd, fiberid, datav, False, False, False, savedir,
                   datadir)

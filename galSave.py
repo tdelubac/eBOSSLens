@@ -10,13 +10,13 @@ from matplotlib import pyplot as plt
 
 
 def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
-            prodCrit=10.0):
+            prodCrit=10000.0):
     detection = False
     preProd = 1.0
     nxtProd = 1.0
     if doublet:
         if len(peak_candidates):
-            preProd, nxtProd = compSpec(obj, peak_candidates[doublet_index])
+            preProd, nxtProd = fitcSpec(obj, peak_candidates[doublet_index])
             if preProd > prodCrit or nxtProd > prodCrit:
                 raise Exception("Rejected by comparing to other fibers")
         z_s = peak_candidates[doublet_index].wavelength / 3727.24 - 1.0
@@ -216,12 +216,12 @@ def fitcSpec(obj, peak, width=2.0):
                        obj.wave2bin(peak.wavDoublet.max() + width *
                                     np.sqrt(peak.varDoublet)), 1.0, dtype=int)
     initP = [peak.ampDoublet[0], peak.varDoublet, peak.ampDoublet[1],
-             peak.wavDoublet[3], peak.wavDoublet[4]]
+             peak.wavDoublet[0], peak.wavDoublet[1]]
     limP = [(0.1, 5.0), (1.0, 8.0), (0.1, 5.0),
             (peak.ampDoublet[0] - width * np.sqrt(peak.varDoublet),
              peak.ampDoublet[0] + width * np.sqrt(peak.varDoublet)),
             (peak.ampDoublet[1] - width * np.sqrt(peak.varDoublet),
-             peak.ampDoublet[1] - width * np.sqrt(peak.varDoublet))]
+             peak.ampDoublet[1] + width * np.sqrt(peak.varDoublet))]
     if obj.fiberid != 1:
         objPre = SDSSObject(obj.plate, obj.mjd, obj.fiberid - 1,
                             obj.dataVersion, obj.baseDir)

@@ -21,29 +21,16 @@ def para_return(func, params, num_thread=4):
 def lensFinder(plate, mjd, fiberid, datav='v5_7_0', datadir='/SCRATCH'):
     savedir = os.path.join('../FullSearch', str(plate) + "-" + str(mjd))
     make_sure_path_exists(savedir)
-    print(str(plate) + " " + str(mjd) + " " + str(fiberid))
     try:
         eBOSSLens(plate, mjd, fiberid, datav, False, False, False, savedir,
                   datadir)
     except Exception as reason:
-        print(reason)
+        text = str(plate) + " " + str(mjd) + " " + str(fiberid) + " " + \
+            str(reason)
+        print(text)
 
 
 if __name__ == "__main__":
-    '''
-    # Required argument
-    parser = argparse.ArgumentParser()
-    parser.add_argument("plate", type=int, help="Plate number")
-    parser.add_argument("mjd", type=int, help="MJD")
-    parser.add_argument("fiberid", type=int, help="FiberId")
-    # parser.add_argument("chi2", type=float)
-    # parser.add_argument("width", type=float)
-    # parser.add_argument("sig", type=float)
-    # parser.add_argument("sdir", type=str)
-    # parser.add_argument("dataVersion", type=str)
-    args = parser.parse_args()
-    eBOSSLens(args.plate, args.mjd, args.fiberid, False, False, False)
-    '''
     platemjd = np.loadtxt('plate-mjd.txt', dtype=int)
     for each in platemjd:
         fiberid = np.arange(1, 1001, 1, dtype=int)
@@ -51,4 +38,5 @@ if __name__ == "__main__":
         for fid in fiberid:
             args.append((each[0], each[1], fid,))
         res = para_return(lensFinder, args, 12)
+    # Uncomment below and comment above to debug
     # lensFinder(6739, 56393, 272)

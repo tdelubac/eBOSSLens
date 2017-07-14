@@ -204,7 +204,7 @@ def compSpec(obj, peak, width=3.0):
                             obj.dataVersion, obj.baseDir)
         nxtFlux = objNxt.reduced_flux[bounds]
         nxtLeng = np.sqrt(np.dot(nxtFlux, nxtFlux))
-        nxtProd = np.dot(nxtLeng, nxtLeng) / (nxtLeng * nowLeng)
+        nxtProd = np.dot(nxtFlux, nowFlux) / (nxtLeng * nowLeng)
     else:
         nxtProd = 0.0
     return preProd, nxtProd

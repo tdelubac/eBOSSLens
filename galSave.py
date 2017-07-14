@@ -211,10 +211,9 @@ def compSpec(obj, peak, width=2.0):
 
 
 def fitcSpec(obj, peak, width=2.0):
-    bounds = np.arange(obj.wave2bin(peak.wavDoublet.min() - width *
-                                    np.sqrt(peak.varDoublet)),
-                       obj.wave2bin(peak.wavDoublet.max() + width *
-                                    np.sqrt(peak.varDoublet)), 1.0, dtype=int)
+    bounds = np.arange(obj.wave2bin(peak.wavDoublet.min()) - 15,
+                       obj.wave2bin(peak.wavDoublet.max()) + 15,
+                       1.0, dtype=int)
     initP = [peak.ampDoublet[0], peak.varDoublet, peak.ampDoublet[1],
              peak.wavDoublet[0], peak.wavDoublet[1]]
     limP = [(0.1, 5.0), (1.0, 8.0), (0.1, 5.0),

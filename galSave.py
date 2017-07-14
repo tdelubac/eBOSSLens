@@ -184,10 +184,10 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd, nxtProd,
         plt.close()
 
 
-def compSpec(obj, peak, width=3.0):
-    bounds = np.arange(obj.wave2bin(peak.wavDoublet[0] - width *
+def compSpec(obj, peak, width=2.0):
+    bounds = np.arange(obj.wave2bin(peak.wavDoublet.min() - width *
                                     np.sqrt(peak.varDoublet)),
-                       obj.wave2bin(peak.wavDoublet[1] + width *
+                       obj.wave2bin(peak.wavDoublet.max() + width *
                                     np.sqrt(peak.varDoublet)), 1.0, dtype=int)
     nowFlux = obj.reduced_flux[bounds]
     nowLeng = np.sqrt(np.dot(nowFlux, nowFlux))
@@ -208,3 +208,30 @@ def compSpec(obj, peak, width=3.0):
     else:
         nxtProd = 0.0
     return preProd, nxtProd
+
+
+def fitcSpec(obj, peak, width=2.0):
+    bounds = np.arange(obj.wave2bin(peak.wavDoublet.min() - width *
+                                    np.sqrt(peak.varDoublet)),
+                       obj.wave2bin(peak.wavDoublet.max() + width *
+                                    np.sqrt(peak.varDoublet)), 1.0, dtype=int)
+    initP = [peak.ampDoublet[0], peak.varDoublet, peak.ampDoublet[1],
+             peak.wavDoublet[3], peak.wavDoublet[4]]
+    limP = [(0.1, 5.0), (1.0, 8.0), (0.1, 5.0),
+            (peak.ampDoublet[0] - width * np.sqrt(peak.varDoublet),
+             peak.ampDoublet[0] + width * np.sqrt(peak.varDoublet)),
+            (peak.ampDoublet[1] - width * np.sqrt(peak.varDoublet),
+             peak.ampDoublet[1] - width * np.sqrt(peak.varDoublet))]
+    if obj.fiberid != 1:
+        objPre = SDSSObject(obj.plate, obj.mjd, obj.fiberid - 1,
+                            obj.dataVersion, obj.baseDir)
+        resp, preChi2 = objPre.doubletFit(bounds, initP, limP)
+    else:
+        preChi2 = 1000.0
+    if obj.fiberid != 1000:
+        objNxt = SDSSObject(obj.plate, obj.mjd, obj.fiberid + 1,
+                            obj.dataVersion, obj.baseDir)
+        resp, nxtChi2 = objNxt.doubletFit(bounds, initP, limP)
+    else:
+        nxtChi2 = 1000.0
+    return [preChi2, nxtChi2]

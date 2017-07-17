@@ -240,12 +240,14 @@ def fitcSpec(obj, peak, width=2.0):
         objPre = SDSSObject(obj.plate, obj.mjd, obj.fiberid - 1,
                             obj.dataVersion, obj.baseDir)
         resp, preChi2 = objPre.doubletFit(bounds, initP, limP)
+        preAmp = (resp[0] + resp[2]) / np.sum(peak.ampDoublet)
     else:
-        preChi2 = 1000.0
+        preAmp = 0.0
     if obj.fiberid != 1000:
         objNxt = SDSSObject(obj.plate, obj.mjd, obj.fiberid + 1,
                             obj.dataVersion, obj.baseDir)
-        resp, nxtChi2 = objNxt.doubletFit(bounds, initP, limP)
+        resn, nxtChi2 = objNxt.doubletFit(bounds, initP, limP)
+        nxtAmp = (resn[0] + resn[2]) / np.sum(peak.ampDoublet)
     else:
-        nxtChi2 = 1000.0
-    return [preChi2, nxtChi2]
+        nxtAmp = 0.0
+    return [preAmp, nxtAmp]

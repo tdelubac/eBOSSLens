@@ -126,7 +126,7 @@ def _multletSave(obj, peak_candidates, savedir, em_lines):
 def galSaveflux(fList, fid, savedir):
     fileDir = os.path.join(savedir, "doublet_ML")
     make_sure_path_exists(fileDir)
-    fileDir = os.path.join(fileDir, fid + ".pkl")
+    fileDir = os.path.join(fileDir, str(fid) + ".pkl")
     f = open(fileDir, "wb")
     pickle.dump(fList, f)
     f.close()

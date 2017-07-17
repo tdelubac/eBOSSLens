@@ -39,4 +39,4 @@ if __name__ == "__main__":
             args.append((each[0], each[1], fid,))
         res = para_return(lensFinder, args, 12)
     # Uncomment below and comment above to debug
-    # lensFinder(6739, 56393, 272)
+    # lensFinder(6739, 56393, 272, datadir='../SCRATCH')

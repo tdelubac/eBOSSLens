@@ -197,32 +197,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         raise Exception("Rejected since no below 9200")
     # Try to infer background redshift
     if not (searchLyA or QSOlens or Jackpot):
-        detection = galSave(doublet, obj, peak_candidates, doublet_index,
-                            savedir, em_lines)
-        # Save surviving candidates (Galaxy-Galaxy case)
-        peaks = []
-        for k in range(len(peak_candidates)):
-            peak = peak_candidates[k]
-            if k == doublet_index and doublet:
-                # Save doublet gaussians
-                peaks.append([peak.wavDoublet[0], peak.ampDoublet[0],
-                              peak.varDoublet])
-                peaks.append([peak.wavDoublet[1], peak.ampDoublet[1],
-                              peak.varDoublet])
-            else:
-                # Save emission line
-                peaks.append([peak.wavSinglet, peak.ampSinglet,
-                              peak.varSinglet])
-        peak_number = len(peak_candidates)
-        # Graphs OII doublet
-        if (peak_number > 1 or doublet) and below_9500 and detection:
-            # Computing total fit of all peaks
-            fit = 0.0
-            for k in n.arange(len(peaks)):
-                fit = fit + gauss(obj.wave, x_0=peaks[k][0], A=peaks[k][1],
-                                  var=peaks[k][2])
-            plotGalaxyLens(doublet, obj, savedir, peak_candidates,
-                           doublet_index, fit)
+        galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines)
     elif (not (searchLyA or Jackpot)) and QSOlens:
         # TODO: complete the function
         qsoSave(peak_candidates, savedir)

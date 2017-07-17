@@ -1,4 +1,5 @@
 import os
+import pickle
 import itertools as it
 import numpy as np
 from utils import make_sure_path_exists, gauss
@@ -45,6 +46,11 @@ def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
                               var=peaks[k][2])
         plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd,
                        nxtProd, doublet_index, fit)
+        if doublet:
+            x_doublet = np.mean(peak_candidates[doublet_index].wavDoublet)
+            bd = np.linspace(obj.wave2bin(x_doublet) - 10,
+                             obj.wave2bin(x_doublet) + 10, 21, dtype=np.int16)
+            galSaveflux(obj.reduced_flux[bd], obj.fiberid, savedir)
 
 
 def _doubletSave(obj, z_s, peak_candidates, doublet_index, savedir):
@@ -115,6 +121,15 @@ def _multletSave(obj, peak_candidates, savedir, em_lines):
                     str(obj.fiberid) + " " + str(confirmed_lines) + "\n")
     fileM.close()
     return detection
+
+
+def galSaveflux(fList, fid, savedir):
+    fileDir = os.path.join(savedir, "doublet_ML")
+    make_sure_path_exists(fileDir)
+    fileDir = os.path.join(fileDir, fid + ".pkl")
+    f = open(fileDir, "wb")
+    pickle.dump(fList, f)
+    f.close()
 
 
 def plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd, nxtProd,

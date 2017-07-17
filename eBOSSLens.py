@@ -13,11 +13,10 @@ from SDSSObject import SDSSObject
 from objFilter import qsoFilter, genFilter
 from peakFinder import bolEstm, peakCandidate, combNear, checkFore, \
     qsoContfit, qsoBggal, jpLens, doubletO2, skewFit
-from galSave import galSave, plotGalaxyLens
+from galSave import galSave
 from qsoSave import qsoSave
 from jptSave import jptSave
 from lyaSave import lyaSave
-from utils import gauss
 
 
 # Currently unused, but might be useful parameters
@@ -37,7 +36,7 @@ wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
 
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=4.0, wMask=wMask, em_lines=em_lines,
-              bwidth=60.0, bsig=1.2):
+              bwidth=30.0, bsig=1.2):
     obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)

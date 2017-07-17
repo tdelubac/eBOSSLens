@@ -31,6 +31,7 @@ def lensFinder(plate, mjd, fiberid, datav='v5_7_0', datadir='/SCRATCH'):
 
 
 if __name__ == "__main__":
+    '''
     platemjd = np.loadtxt('plate-mjd.txt', dtype=int)
     for each in platemjd:
         fiberid = np.arange(1, 1001, 1, dtype=int)
@@ -38,5 +39,6 @@ if __name__ == "__main__":
         for fid in fiberid:
             args.append((each[0], each[1], fid,))
         res = para_return(lensFinder, args, 12)
+    '''
     # Uncomment below and comment above to debug
-    # lensFinder(4391, 55866, 999, datadir='../SCRATCH')
+    lensFinder(6739, 56393, 272, datadir='../SCRATCH')

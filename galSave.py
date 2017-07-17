@@ -226,28 +226,33 @@ def compSpec(obj, peak, width=2.0):
 
 
 def fitcSpec(obj, peak, width=2.0):
-    bounds = np.arange(obj.wave2bin(peak.wavDoublet.min()) - 15,
-                       obj.wave2bin(peak.wavDoublet.max()) + 15,
-                       1.0, dtype=int)
     initP = [peak.ampDoublet[0], peak.varDoublet, peak.ampDoublet[1],
              peak.wavDoublet[0], peak.wavDoublet[1]]
     limP = [(0.1, 5.0), (1.0, 8.0), (0.1, 5.0),
-            (peak.ampDoublet[0] - width * np.sqrt(peak.varDoublet),
-             peak.ampDoublet[0] + width * np.sqrt(peak.varDoublet)),
-            (peak.ampDoublet[1] - width * np.sqrt(peak.varDoublet),
-             peak.ampDoublet[1] + width * np.sqrt(peak.varDoublet))]
+            (peak.wavDoublet[0] - width * np.sqrt(peak.varDoublet),
+             peak.wavDoublet[0] + width * np.sqrt(peak.varDoublet)),
+            (peak.wavDoublet[1] - width * np.sqrt(peak.varDoublet),
+             peak.wavDoublet[1] + width * np.sqrt(peak.varDoublet))]
     if obj.fiberid != 1:
-        objPre = SDSSObject(obj.plate, obj.mjd, obj.fiberid - 1,
+        objPre = SDSSObject(obj.plate, obj.mjd, 271,
                             obj.dataVersion, obj.baseDir)
+        bounds = np.arange(objPre.wave2bin(peak.wavDoublet.min()) - 15,
+                           objPre.wave2bin(peak.wavDoublet.max()) + 15,
+                           1.0, dtype=int)
         resp, preChi2 = objPre.doubletFit(bounds, initP, limP)
-        preAmp = (resp[0] + resp[2]) / np.sum(peak.ampDoublet)
+        preAmp = (resp[0] + resp[2]) * np.sqrt(resp[1]) / \
+            (np.sum(peak.ampDoublet) * np.sqrt(peak.varDoublet))
     else:
         preAmp = 0.0
     if obj.fiberid != 1000:
         objNxt = SDSSObject(obj.plate, obj.mjd, obj.fiberid + 1,
                             obj.dataVersion, obj.baseDir)
+        bounds = np.arange(objNxt.wave2bin(peak.wavDoublet.min()) - 15,
+                           objNxt.wave2bin(peak.wavDoublet.max()) + 15,
+                           1.0, dtype=int)
         resn, nxtChi2 = objNxt.doubletFit(bounds, initP, limP)
-        nxtAmp = (resn[0] + resn[2]) / np.sum(peak.ampDoublet)
+        nxtAmp = (resn[0] + resn[2]) * np.sqrt(resn[1]) / \
+            (np.sum(peak.ampDoublet) * np.sqrt(peak.varDoublet))
     else:
         nxtAmp = 0.0
     return [preAmp, nxtAmp]

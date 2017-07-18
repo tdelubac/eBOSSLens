@@ -11,18 +11,18 @@ from matplotlib import pyplot as plt
 
 
 def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
-            doPlot, prodCrit=10000.0):
+            doPlot, prodCrit=0.6):
     detection = False
     preProd = 1.0
     nxtProd = 1.0
     if doublet:
         if len(peak_candidates):
             preProd, nxtProd = fitcSpec(obj, peak_candidates[doublet_index])
-            if preProd > prodCrit or nxtProd > prodCrit:
+            if preProd + nxtProd > prodCrit:
                 raise Exception("Rejected by comparing to other fibers")
         z_s = peak_candidates[doublet_index].wavelength / 3727.24 - 1.0
         detection = _doubletSave(obj, z_s, peak_candidates, doublet_index,
-                                 savedir)
+                                 savedir, preProd, nxtProd)
         if len(peak_candidates):
             detection = _dblmultSave(obj, z_s, peak_candidates, savedir,
                                      detection, em_lines)
@@ -54,7 +54,7 @@ def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
             galSaveflux(obj.reduced_flux[bd], obj.fiberid, savedir)
 
 
-def _doubletSave(obj, z_s, peak_candidates, doublet_index, savedir):
+def _doubletSave(obj, z_s, peak_candidates, doublet_index, savedir, pP, nP):
     score = 0.0
     detection = False
     fileD = open(os.path.join(savedir, 'candidates_doublet.txt'), 'a')
@@ -65,8 +65,8 @@ def _doubletSave(obj, z_s, peak_candidates, doublet_index, savedir):
                     " " + str(z_s) + " " + str(obj.RA) + " " +
                     str(obj.DEC) + " " + str(obj.plate) + " " +
                     str(obj.mjd) + " " + str(obj.fiberid) + " " +
-                    str(peak_candidates[doublet_index].wavDoublet[0]) +
-                    "\n")
+                    str(peak_candidates[doublet_index].wavDoublet[0]) + " " +
+                    str(pP) + " " + str(nP) + "\n")
     fileD.close()
     return detection
 
@@ -152,14 +152,6 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd, nxtProd,
     # If doublet, plot in two different windows
     else:
         # Plot currently inspecting spectra
-        x_doublet = np.mean(peak_candidates[doublet_index].wavDoublet)
-        bounds = np.linspace(obj.wave2bin(x_doublet) - 10,
-                             obj.wave2bin(x_doublet) + 10, 21, dtype=np.int16)
-        f = open(os.path.join(savedir, 'doublet_ML.txt'), 'a')
-        f.write(str(obj.plate) + ' ' + str(obj.mjd) + ' ' + str(obj.fiberid) +
-                ' ' + str(preProd) + ' ' + str(nxtProd) + ' ' +
-                str(obj.reduced_flux[bounds]) + "\n")
-        f.close()
         plt.figure(figsize=(14, 6))
         ax1 = plt.subplot2grid((1, 3), (0, 0), colspan=2)
         plt.suptitle('RA=' + str(obj.RA) + ', Dec=' + str(obj.DEC) +
@@ -234,24 +226,17 @@ def fitcSpec(obj, peak, width=2.0):
              peak.wavDoublet[0] + width * np.sqrt(peak.varDoublet)),
             (peak.wavDoublet[1] - width * np.sqrt(peak.varDoublet),
              peak.wavDoublet[1] + width * np.sqrt(peak.varDoublet))]
+    bounds = np.arange(obj.wave2bin(peak.wavDoublet.min()) - 15,
+                       obj.wave2bin(peak.wavDoublet.max()) + 15, 1.0,
+                       dtype=int)
     if obj.fiberid != 1:
-        objPre = SDSSObject(obj.plate, obj.mjd, 271,
-                            obj.dataVersion, obj.baseDir)
-        bounds = np.arange(objPre.wave2bin(peak.wavDoublet.min()) - 15,
-                           objPre.wave2bin(peak.wavDoublet.max()) + 15,
-                           1.0, dtype=int)
-        resp, preChi2 = objPre.doubletFit(bounds, initP, limP)
+        resp, preChi2 = obj.doubletFit(bounds, initP, limP, "pre")
         preAmp = (resp[0] + resp[2]) * np.sqrt(resp[1]) / \
             (np.sum(peak.ampDoublet) * np.sqrt(peak.varDoublet))
     else:
         preAmp = 0.0
     if obj.fiberid != 1000:
-        objNxt = SDSSObject(obj.plate, obj.mjd, obj.fiberid + 1,
-                            obj.dataVersion, obj.baseDir)
-        bounds = np.arange(objNxt.wave2bin(peak.wavDoublet.min()) - 15,
-                           objNxt.wave2bin(peak.wavDoublet.max()) + 15,
-                           1.0, dtype=int)
-        resn, nxtChi2 = objNxt.doubletFit(bounds, initP, limP)
+        resn, nxtChi2 = obj.doubletFit(bounds, initP, limP, "nxt")
         nxtAmp = (resn[0] + resn[2]) * np.sqrt(resn[1]) / \
             (np.sum(peak.ampDoublet) * np.sqrt(peak.varDoublet))
     else:

@@ -45,6 +45,15 @@ class SDSSObject():
         self.wave = 10. ** (self.c0 + self.c1 * np.arange(self.npix))
         self.flux = hdulist[0].data[findex]
         self.ivar = hdulist[1].data[findex]
+        # Also load for previous and next fiber
+        fluxPre = []
+        fluxNxt = []
+        if findex != 0:
+            fluxPre = hdulist[0].data[findex - 1]
+            self.ivarPre = hdulist[1].data[findex - 1]
+        if findex != 999:
+            fluxNxt = hdulist[0].data[findex + 1]
+            self.ivarNxt = hdulist[1].data[findex + 1]
         hdulist.close()
         # Load data from spZbest
         hdulist = pf.open(zbFile)
@@ -60,6 +69,11 @@ class SDSSObject():
         self.z_err = hdulist[1].data.field('Z_ERR')[findex]
         self.spectroflux = hdulist[1].data.field('SPECTROFLUX')[findex]
         self.rchi2 = hdulist[1].data.field('RCHI2')[findex]
+        # Also load reduced flux / ivar for previous fiber and next fiber
+        if findex != 0:
+            self.reduced_flux_pre = fluxPre - hdulist[2].data[findex - 1]
+        if findex != 999:
+            self.reduced_flux_nxt = fluxNxt - hdulist[2].data[findex + 1]
         hdulist.close()
         # Load data from spZline
         hdulist = pf.open(zlFile)
@@ -144,7 +158,7 @@ class SDSSObject():
                        method='SLSQP', bounds=paramLim)
         return res.x, res.fun
 
-    def doubletFit(self, bounds, initParam, paramLim):
+    def doubletFit(self, bounds, initParam, paramLim, NxtPre=None):
         '''
         SDSSObject.singleFit(bounds, initParam, paramLim)
         ====================================================
@@ -154,13 +168,23 @@ class SDSSObject():
             bounds: the range that will be fitted
             initParam: initial parameter
             paramLim: limit of parameter to search for
+            NxtPre: use next, present or previous fiber data
         Returns:
             res.x: parameter value after fitting
             res.fun: chisquare of the fitting
         '''
-        res = minimize(chi2D, initParam, args=(self.wave[bounds],
-                                               self.reduced_flux[bounds],
-                                               self.ivar[bounds]),
+        if NxtPre is None:
+            rf = self.reduced_flux[bounds]
+            iv = self.ivar[bounds]
+        elif NxtPre == "nxt" and self.fiberid != 1000:
+            rf = self.reduced_flux_nxt[bounds]
+            iv = self.ivarNxt[bounds]
+        elif NxtPre == "pre" and self.fiberid != 1:
+            rf = self.reduced_flux_pre[bounds]
+            iv = self.ivarPre[bounds]
+        else:
+            raise ValueError("Invalid NxtPre value")
+        res = minimize(chi2D, initParam, args=(self.wave[bounds], rf, iv),
                        method='SLSQP', bounds=paramLim)
         return res.x, res.fun
 

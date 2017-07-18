@@ -36,7 +36,8 @@ wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
 
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=4.0, wMask=wMask, em_lines=em_lines,
-              bwidth=30.0, bsig=1.2, cMulti=1.1, doPlot=False):
+              bwidth=30.0, bsig=1.2, cMulti=1.08, doPlot=False,
+              prodCrit=1000.0):
     obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
@@ -195,7 +196,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     # Try to infer background redshift
     if not (searchLyA or QSOlens or Jackpot):
         galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
-                doPlot)
+                doPlot, prodCrit)
     elif (not (searchLyA or Jackpot)) and QSOlens:
         # TODO: complete the function
         qsoSave(peak_candidates, savedir, doPlot)

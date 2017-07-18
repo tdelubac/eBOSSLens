@@ -41,10 +41,12 @@ class peakCandidate():
             self.var = self.varSinglet
             self.wav = self.wavSinglet
 
-    def update(self):
-        if self.chi > self.chiDoublet > self.chiSinglet:
+    def update(self, cm):
+        if self.chiDoublet == self.chiSinglet:
             self.setDoublet(False)
-        elif self.chi > self.chiSinglet > self.chiDoublet:
+        elif self.chiDoublet > cm * self.chiSinglet:
+            self.setDoublet(False)
+        elif cm * self.chiSinglet > self.chiDoublet:
             self.setDoublet(True)
 
 

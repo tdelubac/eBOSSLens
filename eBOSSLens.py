@@ -36,7 +36,7 @@ wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
 
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=4.0, wMask=wMask, em_lines=em_lines,
-              bwidth=30.0, bsig=1.2):
+              bwidth=30.0, bsig=1.2, cMulti=1.1):
     obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
@@ -146,9 +146,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         # Compare singlet and doublet fit within each peakCandidate
         for k in range(len(peak_candidates)):
             pk = peak_candidates[k]
-            pk.update()
-            if pk.wavelength > 9200.0:
-                pk.setDoublet(False)
+            pk.update(cMulti)
         # Removing candidates that were not fitted
         peak_candidates = n.array([peak for peak in peak_candidates if
                                    (peak.chi != 1000.0)])

@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 
 
 def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
-            prodCrit=10000.0):
+            doPlot, prodCrit=10000.0):
     detection = False
     preProd = 1.0
     nxtProd = 1.0
@@ -40,12 +40,13 @@ def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
             peaks.append([peak.wavSinglet, peak.ampSinglet, peak.varSinglet])
     peak_number = len(peak_candidates)
     if (peak_number > 1 or doublet) and detection:
-        fit = 0.0
-        for k in np.arange(len(peaks)):
-            fit = fit + gauss(obj.wave, x_0=peaks[k][0], A=peaks[k][1],
-                              var=peaks[k][2])
-        plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd,
-                       nxtProd, doublet_index, fit)
+        if doPlot:
+            fit = 0.0
+            for k in np.arange(len(peaks)):
+                fit = fit + gauss(obj.wave, x_0=peaks[k][0], A=peaks[k][1],
+                                  var=peaks[k][2])
+            plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd,
+                           nxtProd, doublet_index, fit)
         if doublet:
             x_doublet = np.mean(peak_candidates[doublet_index].wavDoublet)
             bd = np.linspace(obj.wave2bin(x_doublet) - 10,

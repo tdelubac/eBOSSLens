@@ -36,7 +36,7 @@ wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
 
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=4.0, wMask=wMask, em_lines=em_lines,
-              bwidth=30.0, bsig=1.2, cMulti=1.1):
+              bwidth=30.0, bsig=1.2, cMulti=1.1, doPlot=False):
     obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
@@ -194,13 +194,14 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         raise Exception("Rejected since no below 9200")
     # Try to infer background redshift
     if not (searchLyA or QSOlens or Jackpot):
-        galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines)
+        galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
+                doPlot)
     elif (not (searchLyA or Jackpot)) and QSOlens:
         # TODO: complete the function
-        qsoSave(peak_candidates, savedir)
+        qsoSave(peak_candidates, savedir, doPlot)
     elif Jackpot:
         # TODO: complete the function
-        jptSave()
+        jptSave(doPlot)
     elif searchLyA and QSOlens and (not Jackpot):
         # TODO: complete the function
-        lyaSave()
+        lyaSave(doPlot)

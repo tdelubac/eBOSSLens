@@ -221,7 +221,7 @@ def compSpec(obj, peak, width=2.0):
 def fitcSpec(obj, peak, width=2.0):
     initP = [peak.ampDoublet[0], peak.varDoublet, peak.ampDoublet[1],
              peak.wavDoublet[0], peak.wavDoublet[1]]
-    limP = [(0.1, 5.0), (1.0, 8.0), (0.1, 5.0),
+    limP = [(0.0, 5.0), (1.0, 8.0), (0.0, 5.0),
             (peak.wavDoublet[0] - width * np.sqrt(peak.varDoublet),
              peak.wavDoublet[0] + width * np.sqrt(peak.varDoublet)),
             (peak.wavDoublet[1] - width * np.sqrt(peak.varDoublet),
@@ -229,13 +229,13 @@ def fitcSpec(obj, peak, width=2.0):
     bounds = np.arange(obj.wave2bin(peak.wavDoublet.min()) - 15,
                        obj.wave2bin(peak.wavDoublet.max()) + 15, 1.0,
                        dtype=int)
-    if obj.fiberid != 1:
+    if obj.fiberid != 1 and (len(obj.ivarPre[bounds].nonzero()[0]) > 6):
         resp, preChi2 = obj.doubletFit(bounds, initP, limP, "pre")
         preAmp = (resp[0] + resp[2]) * np.sqrt(resp[1]) / \
             (np.sum(peak.ampDoublet) * np.sqrt(peak.varDoublet))
     else:
         preAmp = 0.0
-    if obj.fiberid != 1000:
+    if obj.fiberid != 1000 and (len(obj.ivarNxt[bounds].nonzero()[0]) > 6):
         resn, nxtChi2 = obj.doubletFit(bounds, initP, limP, "nxt")
         nxtAmp = (resn[0] + resn[2]) * np.sqrt(resn[1]) / \
             (np.sum(peak.ampDoublet) * np.sqrt(peak.varDoublet))

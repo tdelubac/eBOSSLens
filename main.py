@@ -18,12 +18,12 @@ def para_return(func, params, num_thread=4):
     return res_list
 
 
-def lensFinder(plate, mjd, fiberid, datav='v5_7_0', datadir='/SCRATCH'):
+def lensFinder(plate, mjd, fiberid, datav='v5_7_0', datadir='/SCRATCH', maxchi2=4.0, bwidth=30.0, bsig=1.2):
     savedir = os.path.join('../FullSearch', str(plate) + "-" + str(mjd))
     make_sure_path_exists(savedir)
     try:
         eBOSSLens(plate, mjd, fiberid, datav, False, False, False, savedir,
-                  datadir)
+                  datadir, max_chi2=maxchi2, bwidth=bwidth, bsig=bsig)
     except Exception as reason:
         text = str(plate) + " " + str(mjd) + " " + str(fiberid) + " " + \
             str(reason)
@@ -39,4 +39,5 @@ if __name__ == "__main__":
             args.append((each[0], each[1], fid,))
         res = para_return(lensFinder, args, 12)
     # Uncomment below and comment above to debug
-    # lensFinder(4393, 55944, 320, datadir='../SCRATCH')
+    # lensFinder(4388, 55536, 69, datadir='/SCRATCH')
+    # lensFinder(4391, 55866, 179, datadir='/SCRATCH')

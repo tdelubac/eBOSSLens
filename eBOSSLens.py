@@ -36,7 +36,7 @@ wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
 
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=4.0, wMask=wMask, em_lines=em_lines,
-              bwidth=30.0, bsig=1.2, cMulti=1.08, doPlot=False,
+              bwidth=30.0, bsig=1.2, cMulti=1.04, doPlot=False,
               prodCrit=1000.0):
     obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
     # Mask BOSS spectra glitches + Sky
@@ -92,7 +92,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         if obj.nearLine(x0):
             continue
         x0Bin = obj.wave2bin(x0)
-        bounds = n.linspace(x0Bin - 15, x0Bin + 15, 31, dtype=n.int16)
+        bounds = n.linspace(x0Bin - 15, x0Bin + 15, 61, dtype=n.int16)
         # Fit QSO continuum and check if signal is reduced or not
         # i.e. check if line detection is produced by large features
         accept = False

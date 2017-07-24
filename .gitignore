@@ -1,0 +1,8 @@
+*.fits
+*.fit
+*.txt
+*.pyc
+test.py
+*.cprof
+*.swf
+profile.sh

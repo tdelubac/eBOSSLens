@@ -83,6 +83,7 @@ class SDSSObject():
         # Additional processing
         self.reduced_flux = self.flux - self.synflux
         self.nMax = len(self.flux)
+        self.sn = np.mean(self.reduced_flux * self.ivar)
 
     def wave2bin(self, waveLength):
         '''
@@ -116,7 +117,7 @@ class SDSSObject():
         for each in lineList:
             self.ivar[self.wave2bin(each[0]): self.wave2bin(each[1])] = 0
 
-    def nearLine(self, x0, width=10.0):
+    def nearLine(self, x0, width=5.0):
         '''
         nearLine(mjd, plate, i, x0, obj, width=10.0)
         ============================================

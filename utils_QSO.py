@@ -47,7 +47,7 @@ def mask_QSO(l_width):
 
     # Relative Width of each line was fixed by experimentation on BOSS QSOs
     # The hardcoded lines at the end are probably Fe features, but it is not certain 
-    line_and_width = np.array([[l_LyA -2.5*l_width, l_LyA +2.5*l_width], \
+    start_stop_table = np.array([[l_LyA -2.5*l_width, l_LyA +2.5*l_width], \
         [l_NV -0.5*l_width,l_NV +0.5*l_width] , [l_SiIV -1.5*l_width,l_SiIV +1.5*l_width], \
         [l_CIV -2*l_width,l_CIV +2*l_width] , [l_HeII -0.5*l_width,l_HeII +1.5*l_width], \
         [l_CIII -l_width, l_CIII +l_width], [l_CII -0.5*l_width, l_CIII +0.5*l_width], \
@@ -65,7 +65,6 @@ def mask_QSO(l_width):
         [4490 - l_width, 4490 + l_width], [5080 -l_width, 5080 +l_width],\
         ])
 
-    start_stop_table
     #Mask the above emission lines of QSO's
     #ivar[wave2bin((1+z)*(l_LyA -2.5*l_width),c0,c1,Nmax):wave2bin((1+z)*(l_LyA +2.5*l_width),c0,c1,Nmax)] = 0
     #ivar[wave2bin((1+z)*(l_NV -0.5*l_width),c0,c1,Nmax):wave2bin((1+z)*(l_NV +0.5*l_width),c0,c1,Nmax)] = 0

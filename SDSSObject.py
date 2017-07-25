@@ -128,12 +128,8 @@ class SDSSObject():
         Returns:
             a boolean of whether near or not
         '''
-        crit = []
-        crit.append(abs(self.zline['linewave'] * (1 + self.z) - x0) < width)
-        crit.append(self.zline['lineew'] / self.zline['lineew_err'] > 6.0)
-        crit.append(self.zline['lineew_err'] > 0)
-        match = np.logical_and.reduce(crit)
-        if np.any(match):
+        crit = abs(self.zline['linewave'] * (1 + self.z) - x0) < width
+        if np.any(crit):
             return True
         else:
             return False

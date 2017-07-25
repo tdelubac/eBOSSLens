@@ -9,6 +9,7 @@
 
 # Imports
 import numpy as n
+import os
 from SDSSObject import SDSSObject
 from objFilter import qsoFilter, genFilter
 from peakFinder import bolEstm, peakCandidate, combNear, checkFore, \
@@ -21,15 +22,13 @@ from lyaSave import lyaSave
 
 # Currently unused, but might be useful parameters
 '''
-# Typical mask width
-l_width = 15
 # TODO: clean up
 l_LyA = 1215.668
 '''
 # Set of emission lines used for lensed galaxy detection:
 # OII, Hb, OIII, Ha
 em_lines = n.array([3726.5, 4861.325, 4958.911, 5006.843, 6562.801])
-# Waves for mask
+# Sky pollution Wavebands for masking
 wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
                  [6348.0, 6378.0]])
 
@@ -37,25 +36,31 @@ wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=4.0, wMask=wMask, em_lines=em_lines,
               bwidth=30.0, bsig=1.2, cMulti=1.04, doPlot=False,
-              prodCrit=1000.0):
+              prodCrit=1000.0, QSO_line_width = 15):
     obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
-    # Mask BOSS spectra glitches + Sky
-    obj.mask(wMask)
-    # Filter out unwanted spectras
+
     accept = False
     if QSOlens:
-        # TODO: complete the function
-        accept = qsoFilter(obj)
+        # Filter out unwanted spectras
+        DR12Q = DR12Q_extractor(path=os.path.join(savedir, 'Superset_DR12Q.fits'))
+        accept = qsoFilter(obj, DR12Q)
     else:
         accept = genFilter(obj)
+        obj.mask(wMask)
     if not accept:
         raise Exception("Rejected by filter")
+
+    # Mask BOSS spectra glitches + Sky
+    obj.mask(wMask)
+    if QSOlens:
+        obj.mask(mask_QSO(QSO_line_width))
+
     # Find peaks
     doublet = None
     # Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks
     if searchLyA:
-        width = 30.0
-        sig = 2.17
+        width = bwidth
+        sig = bsig 
     else:
         width = bwidth
         sig = bsig

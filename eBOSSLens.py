@@ -42,7 +42,7 @@ eMask = n.array([4103.0, 4342.0, 4863.0, 6563.0, 5008.0, 4960.0, 4364.0])
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=2.5, wMask=wMask, eMask=eMask, em_lines=em_lines,
               bwidth=60.0, bsig=1.2, cMulti=1.04, doPlot=False,
-              prodCrit=1000.0, emWidth=10.0):
+              prodCrit=1000.0, emWidth=10.0, snCrit=50.0):
     obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
@@ -55,9 +55,13 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         accept = genFilter(obj)
     if not accept:
         raise Exception("Rejected by filter")
-    # Mask strong emission lines
-    for each in eMask:
-        obj.mask(n.array([[each - emWidth, each + emWidth]]) * (obj.z + 1.0))
+    # Mask strong emission lines and sn filter
+    if not (QSOlens or searchLyA or Jackpot):
+        if obj.sn > snCrit:
+            raise Exception("Rejected by unusual high SN ratio")
+        for each in eMask:
+            obj.mask(n.array([[each - emWidth, each + emWidth]]) *
+                     (obj.z + 1.0))
     # Find peaks
     doublet = None
     # Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks

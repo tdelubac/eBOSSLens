@@ -17,6 +17,17 @@ def DR12Q_extractor(path='Superset_DR12Q.fits'):
 
 
 def mask_QSO(l_width):
+    '''
+    utils_QSO.mask_QSO(l_width)
+    ========================
+    Hard-coded mask for QSO broad emissions. The line width parameter allows to stretch the masks.
+    
+    Parameters:
+        l_width: Typical line width of QSO broad emissions
+    Returns:
+        start_stop_table: start and stop wavelength used to mask by SDSSObject.mask(linelist)
+    '''
+
     # Masking Lya, NV, SiIV, CIV, etc...
     l_LyA = 1215.668
     l_NV = 1240

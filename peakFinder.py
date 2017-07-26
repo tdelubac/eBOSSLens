@@ -3,14 +3,14 @@ import numpy as np
 from utils import gauss, kernel
 
 
-class peakCandidate():
+class peakCandidateGalGal():
     '''
-    peakCandidate
-    =============
-    A class for all possible candidates of the peak
+    peakCandidateGalGal
+    ===================
+    A class for all possible candidates of peaks found in the galaxy-galaxy lensing case
     '''
     def __init__(self, x0, sn):
-        self.sn = sn                            # Original [4]
+        self.sn = sn                            #  Original SN from Bolton 2004
         self.wavelength = x0                    # Wavelength, keep this for comp
         self.chi = 1000.0                       # Overall chisquare
         self.amp = np.array([0.0, 0.0])         # Overall amplitude
@@ -48,6 +48,45 @@ class peakCandidate():
             self.setDoublet(False)
         elif cm * self.chiSinglet > self.chiDoublet:
             self.setDoublet(True)
+
+
+class peakCandidateGalLAE():
+    '''
+    peakCandidateGalLAE
+    ===================
+    A class for all possible candidates of peaks found in the galaxy-LAE lensing case
+    '''
+
+    # TODO : Fill 
+    def __init__(self, x0, sn):
+        self.sn = sn                            # Original SN from Bolton 2004
+        self.wavelength = x0                    # Peak wavelength
+
+
+class peakCandidateQSOLAE():
+    '''
+    peakCandidateQSOLAE
+    ===================
+    A class for all possible candidates of peaks found in the QSO-LAE lensing case
+    '''
+
+    # TODO : Fill 
+    def __init__(self, x0, sn):
+        self.sn = sn                            # Original SN from Bolton 2004
+        self.wavelength = x0                    # Peak wavelength
+        self.reduced_sn = 0.0                   # Recomputed SN with QSO continuum 3order fit subtraction
+
+class peakCandidateQSOGal():
+    '''
+    peakCandidateGalLAE
+    ===================
+    A class for all possible candidates of peaks found in the QSO-ELG lensing case
+    '''
+    # TODO : Fill 
+    def __init__(self, x0, sn):
+        self.sn = sn                            # Original SN from Bolton 2004
+        self.wavelength = x0                    # Peak wavelength
+        self.reduced_sn = 0.0                   # Recomputed SN with QSO continuum 3order fit subtraction
 
 
 def combNear(pcList):
@@ -106,6 +145,20 @@ def checkFore(pcList, emLines, z):
 
 
 def bolEstm(obj, sig, width):
+    '''
+    peakFinder.bolEstm(obj, sig, width)
+    =============================
+    Performs a SN estimation at each wavelength following the max-likelihood
+    approach of Bolton et al. (2012).  
+
+    Parameters:
+        obj: The SDSS object/spectra on which applied the subtraction
+        sig: Width of the gaussian kernel
+        width: Width of the convolutional window
+    Returns:
+        SN: The SN at each wavelength as an array. Beginning and end are filled
+        with null values due to the convolution.
+    '''
     NormGauss = gauss(np.linspace(-width * 0.5, width * 0.5, width), 0.0, 1.0,
                       sig ** 2.0)
     NormGauss = NormGauss / np.sum(NormGauss)
@@ -120,27 +173,43 @@ def bolEstm(obj, sig, width):
     return SN
 
 
-def qsoContfit(obj, peak, searchLyA):
-    # TODO: complete the function/parameters
+def qsoContfit(obj, peak, searchLyA, window_width = 40):
     '''
-    window = n.linspace(wave2bin(x0,c0,c1,Nmax)-40,wave2bin(x0,c0,c1,Nmax)+40,81,dtype = n.int16)
-    median_local = n.median(reduced_flux[i,window])
-    fit_QSO = n.poly1d(n.polyfit(x=wave[window],y=reduced_flux[i,window],deg=3,w=(n.abs(reduced_flux[i,window]-median_local)<5)*n.sqrt(ivar[i,window])) )
-    new_flux = reduced_flux[i,window] - fit_QSO(wave[window])
-    cj1_new = n.sum(new_flux*kernel(int(len(window)/2),width,NormGauss,len(new_flux))*ivar[i,window])
-    cj2_new = n.sum(ivar[i,window]*kernel(int(len(window)/2),width,NormGauss,len(window))**2)
-    SN_fitted = cj1_new/n.sqrt(cj2_new)
+    peakFinder.qsoContfit(obj, peak, searchLyA, window_width)
+    =============================
+    A function to fit the QSO continuum near a peak with a 3rd order polynomial 
+    and subtract it. Add the new SN of the peak in its class.
+
+    Parameters:
+        obj: The SDSS object/spectra on which applied the subtraction
+        peak: The inquired peak
+        searchLyA: True if we search for background LAE, False for backgroung ELGs
+        window_width: Half-width (Angstroms) on which the polynomial is fitted
+    Returns:
+        accept: True if the SN is still high after subtraction. False otherwise.
+    '''
+    window = np.linspace(obj.wave2bin(x0)-40,obj.wave2bin(x0)+40,81,dtype = n.int16)
+    median_local = np.median(obj.reduced_flux[window])
+
+    fit_QSO = np.poly1d(np.polyfit(x=obj.wave[window],y=obj.reduced_flux[window],deg=3, \
+        w=(np.abs(obj.reduced_flux[window]-median_local)<5)*np.sqrt(obj.ivar[window])) )
+    
+    new_flux = obj.reduced_flux[window] - fit_QSO(obj.wave[window])
+
+    cj1_new = np.sum(new_flux*kernel(int(len(window)/2),width,NormGauss,len(new_flux))*obj.ivar[window])
+    cj2_new = np.sum(obj.ivar[window]*kernel(int(len(window)/2),width,NormGauss,len(window))**2)
+    SN_fitted = cj1_new/np.sqrt(cj2_new)
+
     if searchLyA and SN_fitted < 6:
-        continue
+        return False #Reject
     elif searchLyA and SN_fitted > 6:
-        peak[19] = SN_fitted
-        reduced_flux[i,window]=new_flux
+        peak.reduced_sn = SN_fitted
+        obj.reduced_flux_QSO[window]=new_flux
     elif searchLyA == False and SN_fitted < 6:
         return False  # Reject
     elif searchLyA == False and SN_fitted > 6:
-        peak[3] = SN_fitted
-        reduced_flux[i,window]=new_flux
-    '''
+        peak.reduced_sn = SN_fitted
+        obj.reduced_flux_QSO[window]=new_flux
     return True  # Accept
 
 

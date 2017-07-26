@@ -12,19 +12,13 @@ import numpy as n
 import os
 from SDSSObject import SDSSObject
 from objFilter import qsoFilter, genFilter
-from peakFinder import bolEstm, peakCandidate, combNear, checkFore, \
+from peakFinder import bolEstm, peakCandidateGalGal, combNear, checkFore, \
     qsoContfit, qsoBggal, jpLens, doubletO2, skewFit
 from galSave import galSave
 from qsoSave import qsoSave
 from jptSave import jptSave
 from lyaSave import lyaSave
 
-
-# Currently unused, but might be useful parameters
-'''
-# TODO: clean up
-l_LyA = 1215.668
-'''
 # Set of emission lines used for lensed galaxy detection:
 # OII, Hb, OIII, Ha
 em_lines = n.array([3726.5, 4861.325, 4958.911, 5006.843, 6562.801])
@@ -32,11 +26,43 @@ em_lines = n.array([3726.5, 4861.325, 4958.911, 5006.843, 6562.801])
 wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
                  [6348.0, 6378.0]])
 
-
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=4.0, wMask=wMask, em_lines=em_lines,
               bwidth=30.0, bsig=1.2, cMulti=1.04, doPlot=False,
-              prodCrit=1000.0, QSO_line_width = 15):
+              prodCrit=1000.0, QSO_line_width = 15, minSN = 6.0):
+    '''
+    eBOSSLens
+    =============
+    The Spectroscopic Lens Finder search algorithm.
+  
+    Parameters:
+        obj: A SDSSObject instance to inspect
+        datav: 
+        searchLyA: True if looking for background LAE. False for background ELGs
+        QSOlens: True if looking for QSO as foreground lens. False for foreground ELGs
+        Jackpot: True if looking for ELGs lensing **2** background ELGs. Overrides the 2 previous Booleans
+        savedir: Directory where to save detections. (Note for QSO Lenses, DR12Q must be stored here)
+        datadir: Directory where the .fits files (spPlate, spZBest, spzLine) of the SDSS spectra are stored
+        max_chi2: Max chi^2 for the doublet fitting in the case Galaxy-ELG lensing
+        wMask: Sky lines / Known defects to mask in the spectra
+        em_lines: The emission lines to look at for background ELG search
+        bwidth: Width of window to peform (Bolton 2004) SN convolution
+        bsig: Width of the Gaussian kernel for (Bolton 2004) SN search
+        cMulti: 
+        doPlot: True to plot directly the detections. False to save the plots as images
+        prodCrit:
+        QSO_line_width: Typical half-width of QSO strong emission to mask
+        minSN: Minimal SN to detect promising peaks
+    Returns:
+        returns: Nothing. Raises appropriate exceptions when candidates are discarded.
+            Detections are saved (plot+attributes in txt file) in a child directory of 'savedir'
+    '''
+
+    # Define LyA wavelength (Angstroms)
+    l_LyA = 1215.668
+
+
+    # TODO : Externalize the SDSSObject creation
     obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
 
     accept = False
@@ -47,8 +73,8 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     else:
         accept = genFilter(obj)
         obj.mask(wMask)
-    if not accept:
-        raise Exception("Rejected by filter")
+    #if not accept:
+    #    raise Exception("Rejected by filter")
 
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
@@ -65,13 +91,23 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         width = bwidth
         sig = bsig
     SN = bolEstm(obj, sig, width)
-    # Filter out invalid sources
-    if not (searchLyA or QSOlens):
-        peak_candidates = n.array([peakCandidate(x0, test)
-                                   for x0, test in zip(obj.wave, SN)
-                                   if test > 6.0])
-    else:
-        return
+
+    # Select the max likelihood peak depending on the case
+    if not (searchLyA or QSOlens) or Jackpot:
+        peak_candidates = n.array([peakCandidateGalGal(x0, test) \
+            for x0, test in zip(obj.wave, SN) if test > 6.0])
+    elif (not(QSOlens) and searchLyA):
+        peak_candidates = n.array([peakCandidateGalLAE(x0, test) \
+            for x0, test in zip(obj.wave, SN) if test > 8.0])
+    elif (not(searchLyA) and QSOlens):
+        peak_candidates = n.array([peakCandidateQSOGal(x0, test) \
+            for x0, test in zip(obj.wave, SN) if (test > 6.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
+    elif (searchLyA and QSOlens): 
+        peak_candidates = n.array([peakCandidateQSOLAE(x0, test) \
+            for x0, test in zip(obj.wave, SN) if (test > 8.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
+    else:    
+        raise Exception('Error: Foreground/background objects boolean combinations not found.')
+
     # TODO: peakCandidate for qso or/and lya
     '''
     elif searchLyA and QSOlens:
@@ -157,7 +193,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         peak_candidates = n.array([peak for peak in peak_candidates if
                                    (peak.chi != 1000.0)])
         if len(peak_candidates) == 0:
-            raise Exception("Rejected since no candidates")
+            raise Exception("Rejected since no peak candidates")
         # Sorting candidates by chi square
         peak_candidates = sorted(peak_candidates, key=lambda peak: peak.chi)
         # Keeping only 5 most likely candidates
@@ -190,7 +226,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     '''
     if len(peak_candidates) == 0:
         raise Exception("Rejected since all is lost")
-    # Check that at least 1 candidate is below 9200 Angstrom cut
+    # Check that at least 1 candidate is below 9500 Angstrom cut
     below_9500 = False
     for peak in peak_candidates:
         if peak.wavelength < 9500.0:
@@ -198,7 +234,9 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
             break
     if not below_9500:
         raise Exception("Rejected since no below 9200")
-    # Try to infer background redshift
+
+    # Try to infer background redshift and if successful, save the detection
+    
     if not (searchLyA or QSOlens or Jackpot):
         galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
                 doPlot, prodCrit)

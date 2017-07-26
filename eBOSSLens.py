@@ -138,10 +138,9 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         # i.e. check if line detection is produced by large features
         accept = False
         if QSOlens:
-            # TODO: complete the function
             accept = qsoContfit(obj, peak, searchLyA)
             if not accept:
-                continue
+                raise Exception('Rejected: Peak detection due to incorrect QSO continuum removal')
         # Special case: QSOlens with background galaxies
         if (not (searchLyA or Jackpot)) and QSOlens:
             # TODO: complete the function
@@ -152,6 +151,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
             # TODO: complete the function
             jpLens(obj, peak, em_lines)
             continue
+
         # Singlet
         if searchLyA:
             init = [x0, 4.0, 6.0]
@@ -159,6 +159,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         elif not (searchLyA or QSOlens):
             init = [x0, 1.0, 2.0]
             paramLim = [(x0 - 2.0, x0 + 2.0), (0.1, 5.0), (1.0, 8.0)]
+        #Perform the single Gaussian fit    
         params, chisq = obj.singletFit(bounds, init, paramLim)
         # Check for not too high chi square and save
         if not (chisq > max_chi2 or searchLyA or QSOlens):
@@ -166,19 +167,15 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
             peak.ampSinglet = params[1]
             peak.varSinglet = params[2]
             peak.chiSinglet = chisq
-        # TODO: clean up
-        '''
         elif searchLyA:
-            peak.wavelength = params[0]
-            peak[2] = params[1]
-            peak[3] = params[2]
-            chi2_width = chisq
-            peak[15] = chisq
-        '''
+            peak.wav_g = params[0]
+            peak.amp_g = params[1]
+            peak.var_g = params[2]
+            peak.chi_g = chisq
+
         # Doublet OII
         if x0 > 3727.0 * (1.0 + obj.z) or searchLyA and (not QSOlens):
-            # TODO: finish the 2nd part of the function
-            doubletO2(obj, peak, bounds, searchLyA, max_chi2)
+            doubletO2(obj, peak, bounds, max_chi2)
         # If looking at LAE, test a skew-normal profile as well
         if searchLyA:
             # TODO: complete the function
@@ -236,7 +233,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         raise Exception("Rejected since no below 9200")
 
     # Try to infer background redshift and if successful, save the detection
-    
+
     if not (searchLyA or QSOlens or Jackpot):
         galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
                 doPlot, prodCrit)

@@ -50,17 +50,30 @@ class peakCandidateGalGal():
             self.setDoublet(True)
 
 
-class peakCandidateGalLAE():
+class peakCandidateGalLAE(peakCandidateGalGal):
     '''
     peakCandidateGalLAE
     ===================
     A class for all possible candidates of peaks found in the galaxy-LAE lensing case
     '''
-
-    # TODO : Fill 
     def __init__(self, x0, sn):
-        self.sn = sn                            # Original SN from Bolton 2004
-        self.wavelength = x0                    # Peak wavelength
+        # Initialize as for classical ELG detection
+        peakCandidateGalGal.__init__(x0,sn):
+        # Holders for a skew-normal fit
+        self.isSkew = False
+
+        self.chiSkew = 1000.0                # Original [1]
+        self.wavSkew = 0.0                   # Original [2]
+        self.aSkew = 0.0                     # Original [3]
+        self.bSkew = 0.0                     # Original [0]
+
+    def setSkew(self, flag):
+        self.isSkew= flag
+        if flag:
+            self.chi = self.chiSkew
+            self.wav = self.wavSkew
+        else:
+            self.setDoublet(self.chiDoublet>self.chiSinglet)
 
 
 class peakCandidateQSOLAE():
@@ -270,35 +283,35 @@ def jpLens(obj, peak, em_lines, mask_width_Jackpot = 50):
     '''
 
 
-def doubletO2(obj, peak, bounds, searchLyA, max_chi2):
+def doubletO2(obj, peak, bounds, max_chi2):
+    '''
+    peakFinder.doubletO2(obj, peak, bounds, QSOlens, max_chi2)
+    =============================
+    A function to fit the investigated SN peak with a doublet Gaussian.
+
+    Parameters:
+        obj: The SDSS object/spectra on which applied the subtraction
+        peak: The inquired peak
+        bounds: Bounds to define the support of the fitted polynomial
+        max_chi2: Max chi square for the fitting
+    Returns:
+        - Nothing. Changes the parameters in the peak class    
+    '''
     x0 = peak.wavelength
     params2, chisq2 = obj.doubletFit(bounds,
                                      [1.0, 5.0, 1.0, x0 - 1.5, x0 + 1.5],
                                      [(0.1, 5.0), (1.0, 8.0), (0.1, 5.0),
                                       (x0 - 7.0, x0), (x0, x0 + 7.0)])
-    if ((not (searchLyA or chisq2 > max_chi2)) and
-        0.5 * x0 < abs(params2[3] - params2[4]) * 3726.5 < 4.0 * x0):
+    # Delta OII restframe:  1.3 A  (3725.94 3727.24)
+    if (chisq2 < max_chi2) and (0.5 * x0 < abs(params2[3] - params2[4]) * 3726.5 < 4.0 * x0) \
+        and (not obj.obj_class.startswith('QSO')) :
+        # Here above we check that the foreground is not a QSO where this procedure is useless
         peak.chiDoublet = chisq2
         peak.ampDoublet = np.array([params2[0], params2[2]])
         peak.varDoublet = params2[1]
         peak.wavDoublet = np.array([params2[3], params2[4]])
-    # TODO: complete the 2nd part of the function
-    '''
-    elif searchLyA and chisq2<chisq:
-        peak[1] = params2[3] #x1
-        peak[2] = params2[4] #x2
-        peak[3] = params2[0] #amp1
-        peak[4] = params2[2] #amp2
-        peak[5] = params2[1] #var
-        chi2_width = chisq2
-        peak[16] = chisq2
-    elif searchLyA:
-        peak[16] = chisq2
-        # Delta OII restframe:  1.3 A  (3725.94 3727.24)
-    '''
 
-
-def skewFit(obj, peak):
+def skewFit(obj, peak, bounds, max_chi2):
     # TODO: complete the function/parameters
     '''
                 # Sharp blue, red tail
@@ -330,7 +343,6 @@ def skewFit(obj, peak):
                     peak[9] = params_skew[2] #a
                     peak[10] = params_skew[3] #eps
                     if chisq_skew < chi2_width:
-
                         chi2_width = chisq_skew
                 else:
                     peak[7] = params_skew_c[0] #A1

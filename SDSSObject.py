@@ -83,7 +83,7 @@ class SDSSObject():
         # Additional processing
         self.reduced_flux = self.flux - self.synflux
         self.nMax = len(self.flux)
-        self.sn = np.mean(self.reduced_flux * self.ivar)
+        self.sn = np.nanmean(self.flux * self.ivar)
 
     def wave2bin(self, waveLength):
         '''

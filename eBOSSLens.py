@@ -31,13 +31,18 @@ l_LyA = 1215.668
 em_lines = n.array([3726.5, 4861.325, 4958.911, 5006.843, 6562.801])
 # Waves for mask
 wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
-                 [6348.0, 6378.0]])
+                 [6348.0, 6378.0], [6071.0, 6091.0], [6555.0, 6575.0],
+                 [8335.0, 8355.0], [8819.0, 8839.0], [8988.0, 9008.0],
+                 [9217.0, 9237.0], [9326.0, 9346.0], [9365.0, 9385.0],
+                 [9425.0, 9445.0], [9777.0, 9797.0]])
+# Strong emission lines should also be masked
+eMask = n.array([4103.0, 4342.0, 4863.0, 6563.0, 5008.0, 4960.0, 4364.0])
 
 
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
-              datadir, max_chi2=2.5, wMask=wMask, em_lines=em_lines,
+              datadir, max_chi2=2.5, wMask=wMask, eMask=eMask, em_lines=em_lines,
               bwidth=60.0, bsig=1.2, cMulti=1.04, doPlot=False,
-              prodCrit=1000.0):
+              prodCrit=1000.0, emWidth=10.0):
     obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
@@ -50,6 +55,9 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         accept = genFilter(obj)
     if not accept:
         raise Exception("Rejected by filter")
+    # Mask strong emission lines
+    for each in eMask:
+        obj.mask(n.array([[each - emWidth, each + emWidth]]) * (obj.z + 1.0))
     # Find peaks
     doublet = None
     # Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks

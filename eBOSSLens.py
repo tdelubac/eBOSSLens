@@ -12,8 +12,9 @@ import numpy as n
 import os
 from SDSSObject import SDSSObject
 from objFilter import qsoFilter, genFilter
-from peakFinder import bolEstm, peakCandidateGalGal, combNear, checkFore, \
-    qsoContfit, qsoBggal, jpLens, doubletO2, skewFit
+from peakFinder import bolEstm, peakCandidateGalGal, peakCandidateQSOGal, \
+    peakCandidateQSOLAE, peakCandidateQSOGal combNear, checkFore, \
+    qsoContfit, backgroundELG, jpLens, doubletO2, skewFit
 from galSave import galSave
 from qsoSave import qsoSave
 from jptSave import jptSave
@@ -64,7 +65,6 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     # Define LyA wavelength (Angstroms)
     l_LyA = 1215.668
 
-
     # TODO : Externalize the SDSSObject creation
     obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
 
@@ -111,7 +111,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     else:    
         raise Exception('Error: Foreground/background objects boolean combinations not found.')
 
-    # TODO: peakCandidate for qso or/and lya
+    # TODO: delete if above if working
     '''
     elif searchLyA and QSOlens:
         peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(obj.wave,SN) if (test > 8.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
@@ -123,6 +123,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         # x0 z1 z2 Quad_SN2 SN0->Quad_SN1  free free
         peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(obj.wave,SN) if test>8.0])
     '''
+
     # Keep the center
     peak_candidates = combNear(peak_candidates)
     # Check hits are not from foreground galaxy or badly fitted QSO
@@ -148,7 +149,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         # Special case: QSOlens with background galaxies
         if (not (searchLyA or Jackpot)) and QSOlens:
             # TODO: complete the function
-            qsoBggal(obj, peak, em_lines)
+            backgroundELG(obj, peak, em_lines)
             continue
         # Special case: Jackpot lenses
         if Jackpot:

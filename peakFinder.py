@@ -117,10 +117,11 @@ class peakCandidateQSOLAE():
         self.sn = sn                            # Original SN from Bolton 2004
         self.wavelength = x0                    # Peak wavelength
         self.reduced_sn = 0.0                   # Recomputed SN with QSO continuum 3order fit subtraction
+        self.redshift = x0/1215.667 -1          # Redshift of the background emission
 
 class peakCandidateQSOGal():
     '''
-    peakCandidateGalLAE
+    peakCandidateQSOGal
     ===================
     A class for all possible candidates of peaks found in the QSO-ELG lensing case
     '''
@@ -129,6 +130,8 @@ class peakCandidateQSOGal():
         self.sn = sn                            # Original SN from Bolton 2004
         self.wavelength = x0                    # Peak wavelength
         self.reduced_sn = 0.0                   # Recomputed SN with QSO continuum 3order fit subtraction
+        self.redshift = 0.0                     # Redshift of the background emission
+        self.total_SN = 0.0                     # Total SN of all redshifted ELG emissions (OII, OIII, Hb, Ha usually)
 
 
 def combNear(pcList):
@@ -255,22 +258,33 @@ def qsoContfit(obj, peak, searchLyA, window_width = 40):
     return True  # Accept
 
 
-def qsoBggal(obj, peak, em_lines):
-    # TODO: complete the function/parameters
+def backgroundELG(obj, peak, em_lines):
     '''
+    peakFinder.backgroundELG(obj, peak, em_lines)
+    =============================
+    Determines if a SN peak in a spectra can be part of a group of ELG 
+    emission lines at a certain redshift (greater than the foreground object redshift)
+
+    Parameters:
+        obj: The SDSS object/spectra on which applied the subtraction
+        peak: The inquired peak
+        em_lines: The set of emission tracing the background ELG 
+    Returns:
+        - Nothing. Updates peak attributes by recording the best emission match.
+    '''
+
     for l in em_lines:
-        test_z = peak[0]/l - 1.0
-        if test_z > z[i]:
+        test_z = peak.wavelength/l - 1.0
+        if test_z > obj.z:
             quad_SN = 0.0
             for w in em_lines:
-                center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
-                SN_line = n.array(SN[center_bin-2:center_bin+2])
+                center_bin = obj.wave2bin(w*(1+test_z))
+                SN_line = np.array(SN[center_bin-2:center_bin+2])
                 quad_SN += max(SN_line*(SN_line>0))**2
-            quad_SN = n.sqrt(quad_SN)
-            if quad_SN > peak[5]:
-                 peak[5] = quad_SN
-                 peak[4] = test_z
-     '''
+            quad_SN = np.sqrt(quad_SN)
+            if quad_SN > peak.total_SN:
+                 peak.total_SN = quad_SN
+                 peak.redshift = test_z
 
 
 def jpLens(obj, peak, em_lines, mask_width_Jackpot = 50):

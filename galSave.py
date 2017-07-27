@@ -63,8 +63,8 @@ def _doubletSave(obj, z_s, peak_candidates, doublet_index, savedir, pP, nP):
         score += peak_candidates[doublet_index].chi
         fileD.write(str(obj.radEinstein(z_s)) + " " + str(score) +
                     " " + str(z_s) + " " + str(obj.RA) + " " +
-                    str(obj.DEC) + " " + str(obj.plate) + " " +
-                    str(obj.mjd) + " " + str(obj.fiberid) + " " +
+                    str(obj.DEC) + " " + str(obj.z) + " " + str(obj.plate) + 
+                    " " + str(obj.mjd) + " " + str(obj.fiberid) + " " + 
                     str(peak_candidates[doublet_index].wavDoublet[0]) + " " +
                     str(pP) + " " + str(nP) + " " + str(obj.sn) + "\n")
     fileD.close()

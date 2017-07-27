@@ -3,6 +3,7 @@ import os
 import multiprocessing as mul
 import numpy as np
 from eBOSSLens import eBOSSLens
+from plateStats import plateStats
 from utils import make_sure_path_exists
 
 
@@ -71,8 +72,9 @@ if __name__ == "__main__":
         args = []
         for fid in fiberid:
             args.append((each[0], each[1], fid, dataversion, datadir, savedir,
-                         lya, qso, jpt, bwidth, bsig, maxchi2, False))
+                         lya, qso, jpt, bwidth, bsig, maxchi2, True))
         res = para_return(lensFinder, args, 12)
+        plateStats(each[0], each[1], savedir)
     # Uncomment below and comment above to debug
     # lensFinder(4198, 55480, 319, 'v5_7_0', '../SCRATCH', '../PlotCheck',
     #            False, False, False, 60.0, 1.2, 2.5, True)

@@ -42,9 +42,7 @@ class peakCandidateGalGal():
             self.wav = self.wavSinglet
 
     def update(self, cm):
-        if self.chiDoublet == self.chiSinglet:
-            self.setDoublet(False)
-        elif self.chiDoublet > cm * self.chiSinglet:
+        if self.chiDoublet >= cm * self.chiSinglet:
             self.setDoublet(False)
         elif cm * self.chiSinglet > self.chiDoublet:
             self.setDoublet(True)
@@ -62,18 +60,49 @@ class peakCandidateGalLAE(peakCandidateGalGal):
         # Holders for a skew-normal fit
         self.isSkew = False
 
-        self.chiSkew = 1000.0                # Original [1]
-        self.wavSkew = 0.0                   # Original [2]
-        self.aSkew = 0.0                     # Original [3]
-        self.bSkew = 0.0                     # Original [0]
+        self.chiSkew = 0.0                              # Chi square for Skew fit                     
+        self.ampSkew = 0.0                              # Amplitude A
+        self.scaleSkew = 0.0                            # w
+        self.locSkew = 0.0                              # epsilon
+        self.skewSkew = 0.0                             # skewness alpha
+
+        self.chiSkew_singlet = 0.0                      # Chi square for singlet Skew fit                     
+        self.ampSkew_singlet = 0.0                      # Amplitude A
+        self.scaleSkew_singlet = 0.0                    # w
+        self.locSkew_singlet = 0.0                      # epsilon
+        self.skewSkew_singlet = 0.0                     # skewness alpha
+
+        self.chiSkew_doublet  = 0.0                     # Chi square for doublet Skew fit
+        self.ampSkew_doublet = np.array([0.0,0.0])      # Amplitude A
+        self.scaleSkew_doublet = np.array([0.0,0.0])    # w
+        self.locSkew_doublet = np.array([0.0,0.0])      # epsilon
+        self.skewSkew_doublet = np.array([0.0,0.0])     # skewness alpha
+
+    def update(self, cm):
+        if self.chiSkew_singlet*cm <= self.chiSkew_doublet:
+            self.chiSkew = self.chiSkew_singlet                                           
+            self.ampSkew = self.ampSkew_singlet             
+            self.scaleSkew = self.scaleSkew_singlet              
+            self.locSkew = self.locSkew_singlet
+            self.skewSkew = self.skewSkew_singlet
+        else:
+            self.chiSkew = self.chiSkew_doublet                                     
+            self.ampSkew = self.ampSkew_doublet          
+            self.scaleSkew = self.scaleSkew_doublet    
+            self.locSkew = self.locSkew_doublet
+            self.skewSkew = self.skewSkew_doublet
+
+        if self.chiSkew >= cm * self.chiSinglet:
+            self.setSkew(False)
+        elif cm * self.chiSinglet > self.chiSkew:
+            self.setSkew(True)
 
     def setSkew(self, flag):
         self.isSkew= flag
         if flag:
             self.chi = self.chiSkew
-            self.wav = self.wavSkew
-        else:
-            self.setDoublet(self.chiDoublet>self.chiSinglet)
+        #else:
+        #    self.setDoublet(self.chiDoublet>self.chiSinglet)
 
 
 class peakCandidateQSOLAE():
@@ -290,12 +319,12 @@ def doubletO2(obj, peak, bounds, max_chi2):
     A function to fit the investigated SN peak with a doublet Gaussian.
 
     Parameters:
-        obj: The SDSS object/spectra on which applied the subtraction
+        obj: The SDSS object/spectra at hand
         peak: The inquired peak
         bounds: Bounds to define the support of the fitted polynomial
         max_chi2: Max chi square for the fitting
     Returns:
-        - Nothing. Changes the parameters in the peak class    
+        - Nothing. Updates the appropriate parameters in the peak class    
     '''
     x0 = peak.wavelength
     params2, chisq2 = obj.doubletFit(bounds,
@@ -312,58 +341,84 @@ def doubletO2(obj, peak, bounds, max_chi2):
         peak.wavDoublet = np.array([params2[3], params2[4]])
 
 def skewFit(obj, peak, bounds, max_chi2):
-    # TODO: complete the function/parameters
     '''
-                # Sharp blue, red tail
-                init_skew = [params[1],0.5,2,x0]
-                res_skew = minimize(chi2skew,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(1,10),(x0-4,x0+4)])
-                params_skew_a = res_skew.x
-                chisq_skew_a = res_skew.fun
-                # Double skew symmetric
-                init_skew = [params[1],0.5,-2,x0, params[1]/2,0.5,2,x0+8]
-                res_skew = minimize(chi2skew2,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-6,x0+6), (2,50),(0.0,10),(1,10),(x0-15,x0+15)])
-                params_skew_c = res_skew.x
-                chisq_skew_c = res_skew.fun
+    peakFinder.doubletO2(obj, peak, bounds, QSOlens, max_chi2)
+    =============================
+    A function to fit the investigated SN peak with a skew-normal distribution.
 
-                # Sharp red, blue tail
-                init_skew = [params[1],0.5,-2,x0]
-                res_skew = minimize(chi2skew,init_skew,args=(wave[bounds], reduced_flux[i,bounds],ivar[i,bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-4,x0+4)])
-                params_skew_b = res_skew.x
-                chisq_skew_b = res_skew.fun
+    Because the LyA is made from two wings, we test three model: symmetric wings,
+    sharp red emission with blue tail and sharp blue emission with red tail. 
 
-                if chisq_skew_b < chisq_skew_a:
-                    params_skew = params_skew_b
-                    chisq_skew = chisq_skew_b
-                elif chisq_skew_a < chisq_skew_b:
-                    params_skew = params_skew_a
-                    chisq_skew = chisq_skew_a
-                if chisq_skew < chisq_skew_c:
-                    peak[7] = params_skew[0] #A
-                    peak[8] = params_skew[1] #w
-                    peak[9] = params_skew[2] #a
-                    peak[10] = params_skew[3] #eps
-                    if chisq_skew < chi2_width:
-                        chi2_width = chisq_skew
-                else:
-                    peak[7] = params_skew_c[0] #A1
-                    peak[8] = params_skew_c[1] #w1
-                    peak[9] = params_skew_c[2] #a1
-                    peak[10] = params_skew_c[3] #eps1
-                    peak[11] = params_skew_c[4] #A2
-                    peak[12] = params_skew_c[5] #w2
-                    peak[13] = params_skew_c[6] #a2
-                    peak[14] = params_skew_c[7] #eps2
-                    if chisq_skew_c < chi2_width:
-
-                        chi2_width = chisq_skew_c
-
-                peak[17] = chisq_skew
-                peak[18] = chisq_skew_c
-
-                #put back reduced flux by adding again 3rd order fit (plotting purpose)
-                if QSOlens:
-                    reduced_flux[i,window]= new_flux + fit_QSO(wave[window])
+    Parameters:
+        obj: The SDSS object/spectra
+        peak: The inquired peak
+        bounds: Bounds to define the support of the fitted polynomial
+        max_chi2: Max chi square for the fitting
+    Returns:
+        - Nothing. Updates the appropriate parameters in the peak class    
     '''
+    
+    # For convenience, define
+    x0 = peak.wavelength
+    if obj.obj_class.startswith('QSO'):
+        temp_flux = obj.reduced_flux_QSO[bounds]
+    else:
+        temp_flux = obj.reduced_flux[bounds]
+
+    # Sharp blue, red tail
+    init_skew = [peak.ampSinglet,0.5,2,x0]
+    res_skew = minimize(chi2skew,init_skew,args=(obj.wave[bounds], temp_flux,obj.ivar[bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(1,10),(x0-4,x0+4)])
+    params_skew_a = res_skew.x
+    chisq_skew_a = res_skew.fun
+
+    # Sharp red, blue tail
+    init_skew = [peak.ampSinglet,0.5,-2,x0]
+    res_skew = minimize(chi2skew,init_skew,args=(obj.wave[bounds], temp_flux,obj.ivar[bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-4,x0+4)])
+    params_skew_b = res_skew.x
+    chisq_skew_b = res_skew.fun
+
+    # Double skew symmetric
+    init_skew = [peak.ampSinglet,0.5,-2,x0, peak.ampSinglet/2.0,0.5,2,x0+8]
+    res_skew = minimize(chi2skew2,init_skew,args=(obj.wave[bounds], temp_flux,obj.ivar[bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-6,x0+6), (2,50),(0.0,10),(1,10),(x0-15,x0+15)])
+    params_skew_c = res_skew.x
+    chisq_skew_c = res_skew.fun
+
+    if chisq_skew_b < chisq_skew_a:
+        params_skew = params_skew_b
+        chisq_skew = chisq_skew_b
+    elif chisq_skew_a < chisq_skew_b:
+        params_skew = params_skew_a
+        chisq_skew = chisq_skew_a
+    #if chisq_skew < chisq_skew_c:
+    peak.chiSkew = chisq_skew
+    peak.ampSkew = params_skew[0] #A
+    peak.scaleSkew = params_skew[1] #w
+    peak.skewSkew = params_skew[2] #a
+    peak.locSkew = params_skew[3] #eps
+        
+        #peak[7] = params_skew[0] #A
+        #peak[8] = params_skew[1] #w
+        #peak[9] = params_skew[2] #a
+        #peak[10] = params_skew[3] #eps
+        #if chisq_skew < chi2_width:
+        #    chi2_width = chisq_skew
+    #else:
+    peak.chiSkew_doublet = chisq_skew_c
+    peak.ampSkew  = np.array([params_skew_c[0], params_skew_c[4]]) #A1,A2
+    peak.scaleSkew = np.array([params_skew_c[1], params_skew_c[5]]) #w1, w2
+    peak.skewSkew  = np.array([params_skew_c[2], params_skew_c[6]]) #a1, a2
+    peak.locSkew = np.array([params_skew_c[3], params_skew_c[7]]) #eps1, eps2
+        #peak[11] = params_skew_c[4] #A2
+        #peak[12] = params_skew_c[5] #w2
+        #peak[13] = params_skew_c[6] #a2
+        #peak[14] = params_skew_c[7] #eps2
+        #if chisq_skew_c < chi2_width:
+        #    chi2_width = chisq_skew_c
+
+    ##put back reduced flux by adding again 3rd order fit (plotting purpose)
+    #if QSOlens:
+    #    reduced_flux[i,window]= new_flux + fit_QSO(wave[window])
+
 
 
 

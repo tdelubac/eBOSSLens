@@ -33,7 +33,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     '''
     eBOSSLens
     =============
-    The Spectroscopic Lens Finder search algorithm.
+    The Spectroscopic Lens Finder algorithm.
   
     Parameters:
         obj: A SDSSObject instance to inspect
@@ -48,7 +48,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         em_lines: The emission lines to look at for background ELG search
         bwidth: Width of window to peform (Bolton 2004) SN convolution
         bsig: Width of the Gaussian kernel for (Bolton 2004) SN search
-        cMulti: 
+        cMulti: Multiple to set threshold on non-gaussian fits (chi^2_{ng} > cMulti*chi^2_{g}). Must be >= 1
         doPlot: True to plot directly the detections. False to save the plots as images
         prodCrit:
         QSO_line_width: Typical half-width of QSO strong emission to mask
@@ -57,6 +57,9 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         returns: Nothing. Raises appropriate exceptions when candidates are discarded.
             Detections are saved (plot+attributes in txt file) in a child directory of 'savedir'
     '''
+
+    if cMulti < 1:
+        raise Exception('cMulti must be greater than 1 for proper chi2 comparisons.')
 
     # Define LyA wavelength (Angstroms)
     l_LyA = 1215.668
@@ -141,6 +144,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
             accept = qsoContfit(obj, peak, searchLyA)
             if not accept:
                 raise Exception('Rejected: Peak detection due to incorrect QSO continuum removal')
+
         # Special case: QSOlens with background galaxies
         if (not (searchLyA or Jackpot)) and QSOlens:
             # TODO: complete the function
@@ -177,12 +181,13 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         if x0 > 3727.0 * (1.0 + obj.z) or searchLyA and (not QSOlens):
             doubletO2(obj, peak, bounds, max_chi2)
         # If looking at LAE, test a skew-normal profile as well
-        if searchLyA:
-            # TODO: complete the function
+        if searchLyA and (not QSOlens):
             skewFit(obj, peak)
+
     # Compare the fitting results
-    if not (searchLyA or QSOlens or Jackpot):
+    if not (QSOlens or Jackpot):
         # Compare singlet and doublet fit within each peakCandidate
+        # If searching for Gal-LAE, compares also to skew fit
         for k in range(len(peak_candidates)):
             pk = peak_candidates[k]
             pk.update(cMulti)
@@ -196,14 +201,25 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         # Keeping only 5 most likely candidates
         if len(peak_candidates) > 5:
             peak_candidates = peak_candidates[0:5]
-        # Find whether doublet is in the 5 most likely
-        doublet_index = 0
-        doublet = False
-        for k in range(len(peak_candidates)):
-            if peak_candidates[k].isDoublet:
-                doublet_index = k
-                doublet = True
-                break
+        # Check that doublet is in the 5 most likely remaining
+        if (not searchLyA):
+            doublet_index = 0
+            doublet = False
+            for k in range(len(peak_candidates)):
+                if peak_candidates[k].isDoublet:
+                    doublet_index = k
+                    doublet = True
+                    break
+        # Conversely, check that skew fit is in the 5 most likely remaining
+        elif:
+            skew_index = 0
+            skew = False
+            for k in range(len(peak_candidates)):
+                if peak_candidates[k].isSkew:
+                    skew_index = k
+                    skew = True
+                    break
+
     # TODO: clean up
     '''
     elif (not (searchLyA or Jackpot)) and QSOlens:
@@ -222,7 +238,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
             peak_candidates = peak_candidates[0:3]
     '''
     if len(peak_candidates) == 0:
-        raise Exception("Rejected since all is lost")
+        raise Exception("Rejected since no peak retained")
     # Check that at least 1 candidate is below 9500 Angstrom cut
     below_9500 = False
     for peak in peak_candidates:
@@ -230,7 +246,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
             below_9500 = True
             break
     if not below_9500:
-        raise Exception("Rejected since no below 9200")
+        raise Exception("Rejected since no peak below 9500 A")
 
     # Try to infer background redshift and if successful, save the detection
 

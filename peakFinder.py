@@ -130,8 +130,28 @@ class peakCandidateQSOGal():
         self.sn = sn                            # Original SN from Bolton 2004
         self.wavelength = x0                    # Peak wavelength
         self.reduced_sn = 0.0                   # Recomputed SN with QSO continuum 3order fit subtraction
-        self.redshift = 0.0                     # Redshift of the background emission
-        self.total_SN = 0.0                     # Total SN of all redshifted ELG emissions (OII, OIII, Hb, Ha usually)
+        self.z = 0.0                     # Redshift of the background emission
+        self.total_sn  = 0.0                     # Total SN of all redshifted ELG emissions (OII, OIII, Hb, Ha usually)
+
+class peakCandidateJackpot():
+    '''
+    peakCandidateJackpot
+    ===================
+    A class for all possible candidates of peaks found in the Jackpot case (galaxy lensing 2 ELG at different z)
+    '''
+    def __init__(self, x0, sn):
+    	self.wavelength = 0.0
+
+        self.sn_1 = sn
+        self.wavelength_1 = x0                    # Peak wavelength
+        self.z_1 = 0.0                     # Redshift of the background emission
+        self.total_sn_1  = 0.0                     # Total SN of all redshifted ELG emissions (OII, OIII, Hb, Ha usually)
+
+        self.sn_2 = 0.0
+        self.wavelength_2 = 0.0                    # Peak wavelength
+        self.z_2 = 0.0                     # Redshift of the background emission
+        self.total_sn_2  = 0.0                     # Total SN of all redshifted ELG emissions (OII, OIII, Hb, Ha usually)
+
 
 
 def combNear(pcList):
@@ -282,48 +302,65 @@ def backgroundELG(obj, peak, em_lines):
                 SN_line = np.array(SN[center_bin-2:center_bin+2])
                 quad_SN += max(SN_line*(SN_line>0))**2
             quad_SN = np.sqrt(quad_SN)
-            if quad_SN > peak.total_SN:
-                 peak.total_SN = quad_SN
-                 peak.redshift = test_z
+            if quad_SN > peak.total_sn:
+                 peak.total_sn = quad_SN
+                 peak.z = test_z
 
 
-def jpLens(obj, peak, em_lines, mask_width_Jackpot = 50):
-    # TODO: complete the function/parameters
+def jackpotLens(obj, peak, peak_candidates em_lines, mask_width_Jackpot = 20, total_SN_threshold = 6):
     '''
+    peakFinder.jackpotpLens(obj, peak, em_lines, mask_width_Jackpot = 50):
+    =============================
+    Determines if a peak can be attributed to a background 
+
+    Parameters:
+        obj: The SDSS object/spectra on which applied the subtraction
+        peak: The inquired peak
+        peak_candidates: All other high SN peak detected in the spectra
+        em_lines: The set of emission tracing the background ELG 
+        mask_width: Width to mask first lens features after detection
+        total_SN_threshold: Thresholding to determine if additional lines provide 
+        	meaningful extra SN to be considered as background ELG
+    Returns:
+        - Nothing. Updates peak attributes by recording the best emission match.
+    '''
+
     first_lens = False
-    peak[5] = peak[6]
-    peak[4] = peak[6]
+
     for l in em_lines:
-        test_z = peak[0]/l -1.0
-        if test_z > z[i]+0.05:
-            quad_SN_1 = peak[6]
+        test_z = peak.wavelength_1/l -1.0
+        if test_z > obj.z+0.05:
+            quad_SN_1 = 0.0
             for w in em_lines:
-                if w*(1+test_z) < 9500:
-                    center_bin = wave2bin(w*(1+test_z),c0,c1,Nmax)
-                    SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z), zline, fiberid[i], z[i], int(mjd), int(plate), mask_width_Jackpot)))
+                if w*(1+test_z) <= 9500:
+                    center_bin = obj.wave2bin(w*(1+test_z))
+                    SN_line = np.array(obj.SN[center_bin-2:center_bin+2])* (not nearline(w*(1+test_z), width= mask_width_Jackpot))
                     quad_SN_1 += max(SN_line*(SN_line>0))**2
-            quad_SN_1 = n.sqrt(quad_SN_1)
-            if quad_SN_1 > peak[6] + 6:
-                peak[5] = quad_SN_1
-                peak[2] = test_z
+            quad_SN_1 = np.sqrt(quad_SN_1)
+            if quad_SN_1 > peak.sn_1 + total_SN_threshold:
+                peak.total_sn_1 = quad_SN_1
+                peak.z_1 = test_z
                 first_lens = True
     if first_lens:
         for peak2 in peak_candidates:
-            if n.abs(peak2[0]- peak[0])> 30:
+            if np.abs(peak2.wavelength_1- peak.wavelength_1)> 30:
                 for l in em_lines:
-                    test_z_2 = peak2[0]/l -1.0
-                    if test_z_2 > z[i]+ 0.05 and abs(peak[2]-test_z_2)> 0.05:
+                    test_z_2 = peak2.wavelength_1/l -1.0
+                    if test_z_2 > obj.z+ 0.05 and abs(peak.z_1-test_z_2)> 0.05:
                         quad_SN_2 = 0.0
                         for w in em_lines:
                             if w*(1+test_z_2) < 9500:
-                                center_bin = wave2bin(w*(1+test_z_2),c0,c1,Nmax)
-                                SN_line = n.array(SN[center_bin-2:center_bin+2])*(not(nearline(w*(1+test_z_2), zline, fiberid[i], z[i], int(mjd), int(plate),mask_width_Jackpot)))
+                                center_bin = obj.wave2bin(w*(1+test_z_2))
+                                SN_line = np.array(obj.SN[center_bin-2:center_bin+2])*(not nearline(w*(1+test_z_2), width = mask_width_Jackpot))
                                 quad_SN_2 += max(SN_line*(SN_line>0))**2
-                        quad_SN_2 = n.sqrt(quad_SN_2)
-                        if quad_SN_2 > peak[5] + 6:
-                            peak[4] = quad_SN_2
-                            peak[3] = test_z_2
-    '''
+                        quad_SN_2 = np.sqrt(quad_SN_2)
+                        if quad_SN_2 > peak2.sn + total_SN_threshold:
+                        	peak.wavelength_2 = peak2.wavelength_2
+                        	peak.sn_2 = peak2.sn
+                            peak.total_sn_2 = quad_SN_2
+                            peak.z_2 = test_z_2
+
+                            peak.wavelength = min(peak.wavelength_1, peak.wavelength_2)
 
 
 def doubletO2(obj, peak, bounds, max_chi2):

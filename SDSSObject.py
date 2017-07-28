@@ -84,8 +84,9 @@ class SDSSObject():
         self.reduced_flux = self.flux - self.synflux
         # Additional holder for future QSO continuum removal if needed
         self.reduced_flux_QSO = self.reduced_flux
-
         self.nMax = len(self.flux)
+        # Holder for later of SN array
+        self.SN = np.zeros(len(obj.wave))
 
     def wave2bin(self, waveLength):
         '''

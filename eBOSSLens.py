@@ -13,8 +13,9 @@ import os
 from SDSSObject import SDSSObject
 from objFilter import qsoFilter, genFilter
 from peakFinder import bolEstm, peakCandidateGalGal, peakCandidateQSOGal, \
-    peakCandidateQSOLAE, peakCandidateQSOGal combNear, checkFore, \
-    qsoContfit, backgroundELG, jpLens, doubletO2, skewFit
+    peakCandidateQSOLAE, peakCandidateQSOGal, peakCandidateJackpot, \
+    combNear, checkFore, qsoContfit, backgroundELG, jackpotLens,  \
+    doubletO2, skewFit
 from galSave import galSave
 from qsoSave import qsoSave
 from jptSave import jptSave
@@ -30,7 +31,8 @@ wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=4.0, wMask=wMask, em_lines=em_lines,
               bwidth=30.0, bsig=1.2, cMulti=1.04, doPlot=False,
-              prodCrit=1000.0, QSO_line_width = 15, minSN = 6.0):
+              prodCrit=1000.0, QSO_line_width = 15, minSN = 6.0, threshold_SN = 6.0,
+              jackpotwidth = 20):
     '''
     eBOSSLens
     =============
@@ -54,6 +56,8 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         prodCrit:
         QSO_line_width: Typical half-width of QSO strong emission to mask
         minSN: Minimal SN to detect promising peaks
+        threshold_SN: Threshold to select potential multiple background ELG emissions
+        jackpotwidth: Width of masking on first lensed features before search for second background source
     Returns:
         returns: Nothing. Raises appropriate exceptions when candidates are discarded.
             Detections are saved (plot+attributes in txt file) in a child directory of 'savedir'
@@ -93,21 +97,24 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     else:
         width = bwidth
         sig = bsig
-    SN = bolEstm(obj, sig, width)
+    obj.SN = bolEstm(obj, sig, width)
 
     # Select the max likelihood peak depending on the case
-    if not (searchLyA or QSOlens) or Jackpot:
-        peak_candidates = n.array([peakCandidateGalGal(x0, test) \
-            for x0, test in zip(obj.wave, SN) if test > 6.0])
+    if Jackpot:
+        peak_candidates = np.array([peakCandidateJackpot(x0, test) \
+            for x0, test in zip(obj.wave, obj.SN) if test > 6.0])
+    elif not (searchLyA or QSOlens):
+        peak_candidates = np.array([peakCandidateGalGal(x0, test) \
+            for x0, test in zip(obj.wave, obj.SN) if test > 6.0])
     elif (not(QSOlens) and searchLyA):
-        peak_candidates = n.array([peakCandidateGalLAE(x0, test) \
-            for x0, test in zip(obj.wave, SN) if test > 8.0])
+        peak_candidates = np.array([peakCandidateGalLAE(x0, test) \
+            for x0, test in zip(obj.wave, obj.SN) if test > 8.0])
     elif (not(searchLyA) and QSOlens):
-        peak_candidates = n.array([peakCandidateQSOGal(x0, test) \
-            for x0, test in zip(obj.wave, SN) if (test > 6.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
+        peak_candidates = np.array([peakCandidateQSOGal(x0, test) \
+            for x0, test in zip(obj.wave, obj.SN) if (test > 8.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
     elif (searchLyA and QSOlens): 
-        peak_candidates = n.array([peakCandidateQSOLAE(x0, test) \
-            for x0, test in zip(obj.wave, SN) if (test > 8.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
+        peak_candidates = np.array([peakCandidateQSOLAE(x0, test) \
+            for x0, test in zip(obj.wave, obj.SN) if (test > 8.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
     else:    
         raise Exception('Error: Foreground/background objects boolean combinations not found.')
 
@@ -144,17 +151,16 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         if QSOlens:
             accept = qsoContfit(obj, peak, searchLyA)
             if not accept:
-                raise Exception('Rejected: Peak detection due to incorrect QSO continuum removal')
+                raise Exception('Rejected: Peak detection due to incorrect \
+                    QSO continuum removal')
 
         # Special case: QSOlens with background galaxies
         if (not (searchLyA or Jackpot)) and QSOlens:
-            # TODO: complete the function
             backgroundELG(obj, peak, em_lines)
             continue
         # Special case: Jackpot lenses
         if Jackpot:
-            # TODO: complete the function
-            jpLens(obj, peak, em_lines)
+            jackpotLens(obj, peak, peak_candidates, em_lines, jackpotwidth, threshold_SN)
             continue
 
         # Singlet
@@ -221,23 +227,33 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
                     skew = True
                     break
 
-    # TODO: clean up
+    '''
+    QSO-ELG case: We retain only the significant boost in SN when taking 
+    multiple emissions into account compared to a single peak
     '''
     elif (not (searchLyA or Jackpot)) and QSOlens:
-        peak_candidates = n.array([peak for peak in peak_candidates if peak[5]>(1.5+peak[6])])
+        peak_candidates = np.array([peak for peak in peak_candidates  \
+            if peak.total_sn >(1.5+peak.sn)])
         if len(peak_candidates) == 0:
-            continue
-        peak_candidates = sorted(peak_candidates, key=lambda peak: peak[5])
-        if len(peak_candidates) > 3:
-            peak_candidates = peak_candidates[0:3]
-    elif Jackpot:
-        peak_candidates = n.array([peak for peak in peak_candidates if peak[3]>0.0])
-        if len(peak_candidates) == 0:
-                continue
-        peak_candidates = sorted(peak_candidates, key=lambda peak: peak[5])
+            raise Exception('Candidate rejected. SN peak is not part of a \
+            series of background ELG emissions.')
+        # Keep only 3 best candidates since useless duplicates often happen.     
+        peak_candidates = sorted(peak_candidates, key=lambda peak: peak.total_sn)
         if len(peak_candidates) > 3:
             peak_candidates = peak_candidates[0:3]
     '''
+    Jackpot case: We retain only the significant boost in SN when taking 
+    multiple emissions into account compared to a single peak
+    '''       
+    elif Jackpot:
+        peak_candidates = n.array([peak for peak in peak_candidates if peak.z_2 > 0.0])
+        if len(peak_candidates) == 0:
+            raise Exception("Rejected since no peak retained")
+        peak_candidates = sorted(peak_candidates, key=lambda peak: peak.total_sn_1 + peak.total_sn_2)
+        # Keep only 3 best candidates since useless duplicates often happen.   
+        if len(peak_candidates) > 3:
+            peak_candidates = peak_candidates[0:3]
+
     if len(peak_candidates) == 0:
         raise Exception("Rejected since no peak retained")
     # Check that at least 1 candidate is below 9500 Angstrom cut

@@ -16,18 +16,18 @@ def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
     preProd = 1.0
     nxtProd = 1.0
     if doublet:
-        if len(peak_candidates):
-            preProd, nxtProd = fitcSpec(obj, peak_candidates[doublet_index])
-            if preProd + nxtProd > prodCrit:
-                raise Exception("Rejected by comparing to other fibers")
+        preProd, nxtProd = fitcSpec(obj, peak_candidates[doublet_index])
+        if preProd + nxtProd > prodCrit:
+            raise Exception("Rejected by comparing to other fibers")
         z_s = peak_candidates[doublet_index].wavelength / 3727.24 - 1.0
         detection = _doubletSave(obj, z_s, peak_candidates, doublet_index,
                                  savedir, preProd, nxtProd)
-        if len(peak_candidates):
-            detection = _dblmultSave(obj, z_s, peak_candidates, savedir,
-                                     detection, em_lines)
+        detection = _dblmultSave(obj, z_s, peak_candidates, savedir,
+                                 detection, em_lines)
     elif len(peak_candidates) > 1:
         detection = _multletSave(obj, peak_candidates, savedir, em_lines)
+    if not detection:
+        raise Exception("Rejected since source too near")
     peaks = []
     for k in range(len(peak_candidates)):
         peak = peak_candidates[k]
@@ -63,8 +63,8 @@ def _doubletSave(obj, z_s, peak_candidates, doublet_index, savedir, pP, nP):
         score += peak_candidates[doublet_index].chi
         fileD.write(str(obj.radEinstein(z_s)) + " " + str(score) +
                     " " + str(z_s) + " " + str(obj.RA) + " " +
-                    str(obj.DEC) + " " + str(obj.z) + " " + str(obj.plate) + 
-                    " " + str(obj.mjd) + " " + str(obj.fiberid) + " " + 
+                    str(obj.DEC) + " " + str(obj.z) + " " + str(obj.plate) +
+                    " " + str(obj.mjd) + " " + str(obj.fiberid) + " " +
                     str(peak_candidates[doublet_index].wavDoublet[0]) + " " +
                     str(pP) + " " + str(nP) + " " + str(obj.sn) + "\n")
     fileD.close()
@@ -153,17 +153,20 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd, nxtProd,
     else:
         # Plot currently inspecting spectra
         plt.figure(figsize=(14, 6))
-        ax1 = plt.subplot2grid((1, 3), (0, 0), colspan=2)
         plt.suptitle('RA=' + str(obj.RA) + ', Dec=' + str(obj.DEC) +
                      ', Plate=' + str(obj.plate) + ', Fiber='+str(obj.fiberid) +
                      ', MJD=' + str(obj.mjd) + '\n$z=' + str(obj.z) + ' \pm' +
                      str(obj.z_err) + '$, Class=' + str(obj.obj_class))
-        ax2 = plt.subplot2grid((1, 3), (0, 2))
+        # Reduced flux overall
+        ax1 = plt.subplot2grid((2, 3), (0, 0), colspan=2)
         ax1.plot(obj.wave[10:-10], obj.reduced_flux[10:-10], 'k')
         ax1.plot(obj.wave, fit, 'r')
         ax1.set_xlabel('$\lambda \, [\AA]$ ')
         ax1.set_ylabel(
             '$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$')
+        ax1.set_xlim([np.min(obj.wave), np.max(obj.wave)])
+        # Reduced flux detail
+        ax2 = plt.subplot2grid((2, 3), (0, 2))
         ax2.set_xlabel('$\lambda \, [\AA]$ ')
         ax2.locator_params(tight=True)
         ax2.set_xlim([peak_candidates[doublet_index].wavelength - 30.0,
@@ -173,7 +176,23 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd, nxtProd,
         ax2.set_ylim([-5, 10])
         ax2.vlines(x=obj.zline['linewave'] * (1.0 + obj.z), ymin=-10, ymax=10,
                    colors='g', linestyles='dashed')
-        ax1.set_xlim([np.min(obj.wave), np.max(obj.wave)])
+        # Flux overall
+        ax3 = plt.subplot2grid((2, 3), (1, 0), colspan=2)
+        ax3.plot(obj.wave[10:-10], obj.flux[10:-10], 'k')
+        ax3.plot(obj.wave, obj.synflux, 'r')
+        ax3.set_xlabel('$\lambda \, [\AA]$ ')
+        ax3.set_ylabel(
+            '$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$')
+        ax3.set_xlim([np.min(obj.wave), np.max(obj.wave)])
+        # Flux detail
+        ax4 = plt.subplot2grid((2, 3), (1, 2))
+        ax4.set_xlabel('$\lambda \, [\AA]$ ')
+        ax4.locator_params(tight=True)
+        ax4.set_xlim([peak_candidates[doublet_index].wavelength - 30.0,
+                      peak_candidates[doublet_index].wavelength + 30.0])
+        ax4.plot(obj.wave, obj.flux, 'k')
+        ax4.plot(obj.wave, obj.synflux, 'r')
+        ax4.set_ylim([-5, 10])
         # Plot previous one
         if obj.fiberid != 1:
             objPre = SDSSObject(obj.plate, obj.mjd, obj.fiberid - 1,

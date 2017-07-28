@@ -76,5 +76,5 @@ if __name__ == "__main__":
         res = para_return(lensFinder, args, 12)
         plateStats(each[0], each[1], savedir)
     # Uncomment below and comment above to debug
-    # lensFinder(4198, 55480, 319, 'v5_7_0', '../SCRATCH', '../PlotCheck',
+    # lensFinder(4198, 55480, 14, 'v5_7_0', '../SCRATCH', '../PlotCheck',
     #            False, False, False, 60.0, 1.2, 2.5, True)

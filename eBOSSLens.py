@@ -91,6 +91,8 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         # x0 z1 z2 Quad_SN2 SN0->Quad_SN1  free free
         peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(obj.wave,SN) if test>8.0])
     '''
+    if len(peak_candidates) == 0:
+        raise("Bolton estimator does not found any SN > 6 peaks")
     # Keep the center
     peak_candidates = combNear(peak_candidates)
     # Check hits are not from foreground galaxy or badly fitted QSO
@@ -161,12 +163,15 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
             pk = peak_candidates[k]
             pk.update(cMulti)
         # Removing candidates that were not fitted
+        peak_candidates = n.array([peak for peak in peak_candidates if
+                                   peak.chi != 1000.0])
+        if len(peak_candidates) == 0:
+            raise Exception("Rejected since no valid peak")
         # Hard cut everything above 9200A
         peak_candidates = n.array([peak for peak in peak_candidates if
-                                   (peak.chi != 1000.0 and
-                                    peak.wavelength < 9200.0)])
+                                   peak.wavelength < 9200.0])
         if len(peak_candidates) == 0:
-            raise Exception("Rejected since no candidates")
+            raise Exception("Rejected since no peak below 9200")
         # Sorting candidates by chi square
         peak_candidates = sorted(peak_candidates, key=lambda peak: peak.chi)
         # Keeping only 5 most likely candidates
@@ -197,8 +202,6 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         if len(peak_candidates) > 3:
             peak_candidates = peak_candidates[0:3]
     '''
-    if len(peak_candidates) == 0:
-        raise Exception("Rejected since all is lost")
     # Try to infer background redshift
     if not (searchLyA or QSOlens or Jackpot):
         galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,

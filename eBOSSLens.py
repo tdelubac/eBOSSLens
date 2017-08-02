@@ -42,7 +42,7 @@ eMask = n.array([4103.0, 4342.0, 4863.0, 6563.0, 5008.0, 4960.0, 4364.0])
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=2.5, wMask=wMask, eMask=eMask, em_lines=em_lines,
               bwidth=60.0, bsig=1.2, cMulti=1.04, doPlot=False,
-              prodCrit=0.6, emWidth=10.0, snCrit=50.0):
+              prodCrit=0.6, emWidth=15.0, snCrit=50.0):
     obj = SDSSObject(plate, mjd, fiberid, datav, datadir)
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
@@ -92,7 +92,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(obj.wave,SN) if test>8.0])
     '''
     if len(peak_candidates) == 0:
-        raise("Bolton estimator does not found any SN > 6 peaks")
+        raise Exception("Bolton estimator does not found any SN > 6 peaks")
     # Keep the center
     peak_candidates = combNear(peak_candidates)
     # Check hits are not from foreground galaxy or badly fitted QSO

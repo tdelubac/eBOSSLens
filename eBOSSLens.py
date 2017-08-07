@@ -272,7 +272,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
                 doPlot, prodCrit)
     elif (not (searchLyA or Jackpot)) and QSOlens:
         # TODO: complete the function QSOGAL case
-        qsoSave(peak_candidates, savedir, doPlot)
+        qsoSave(obj, peak_candidates, savedir,em_lines) 
     elif searchLyA and (not Jackpot):
         lyaSave(obj, peak_candidates, savedir,em_lines, threshold_SN, QSOlens, paper_mode)
     elif Jackpot:

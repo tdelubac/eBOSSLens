@@ -5,7 +5,7 @@ from SDSSObject import SDSSObject
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
-from utils import SDSSname
+from utils import SDSSname, make_sure_path_exists
 
 def foregroundELG(obj, peak, em_lines): 
     '''
@@ -152,7 +152,7 @@ def lyaSave(obj, peak_candidates,savedir,em_lines, threshold_SN, QSOlens, paper_
                     + " " + str(peak.eq_Width) + " " + str(peak.flux) +
                     " " + str(peak.l_blue_10) + " " + str(peak.l_red_10) + 
                     " " + str(peak.aLambda) + " " + str(peak.skewness)) 
-
+    fileLyA.close()
 
 
     # TODO: complete the function/parameters/returns
@@ -376,4 +376,3 @@ def plot_QSOLAE(obj,peak, n_peak, QSOlens, paper_mode= True):
     plt.savefig(savedir +'/plots/'+SDSSname(obj.RA,obj.DEC)+ '-' + str(obj.plate) + '-' + str(obj.mjd) + '-' + str(obj.fiberid) + '-' + str(n_peak)+ '.eps', format = 'eps', dpi = 2000)
 
     plt.close()
-    '''

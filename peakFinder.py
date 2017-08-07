@@ -145,8 +145,8 @@ class peakCandidateQSOGal():
         self.sn = sn                            # Original SN from Bolton 2004
         self.wavelength = x0                    # Peak wavelength
         self.reduced_sn = 0.0                   # Recomputed SN with QSO continuum 3order fit subtraction
-        self.z = 0.0                     # Redshift of the background emission
-        self.total_sn  = 0.0                     # Total SN of all redshifted ELG emissions (OII, OIII, Hb, Ha usually)
+        self.redshift = 0.0                     # Redshift of the background emission
+        self.total_sn  = 0.0                    # Total SN of all redshifted ELG emissions (OII, OIII, Hb, Ha usually)
 
 class peakCandidateJackpot():
     '''

@@ -146,7 +146,7 @@ def lyaSave(obj, peak_candidates,savedir,em_lines, threshold_SN, QSOlens, paper_
             fileLyA.write('\n' + str(obj.RA) + " " + str(obj.DEC) +
                     " " + str(obj.plate) + " " + str(obj.mjd) + " " +
                     str(obj.fiberid) + str(obj.spectroflux[1]) + " " +
-                    str(obj.spectroflux[3]) + " " + str(obj.rchi2) + 
+                    str(obj.spectroflux[3]) + " " + str(obj.z)+ " " +str(obj.rchi2) + 
                     " " + str(peak.wavelength) + " " + str(peak.sn) + 
                     " " + str(peak.reduced_sn) + " " + str(peak.redshift) 
                     + " " + str(peak.eq_Width) + " " + str(peak.flux) +

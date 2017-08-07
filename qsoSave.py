@@ -41,8 +41,16 @@ def qsoSave(obj,peak_candidates, savedir, em_lines):
         OII_flux = np.median(temp_fluxes_OII)
         OIII_flux = np.median(temp_fluxes_OIII)
 
-        
-        fileQSO.write('\n' + str([RA[i], DEC[i], int(plate), int(mjd), fiberid[i], z[i], peak[0],peak[4],peak[5],peak[6],spectroflux[i,1], spectroflux[i,3], OII_flux, OIII_flux ]))
+        fileQSO.write('\n' + str(obj.RA) + " " + str(obj.DEC) +
+                    " " + str(obj.plate) + " " + str(obj.mjd) + " " +
+                    str(obj.fiberid) + str(obj.spectroflux[1]) + " " +
+                    str(obj.spectroflux[3]) + " " + str(obj.z) + " " + str(obj.rchi2) + 
+                    " " + str(peak.wavelength) + " " + str(peak.sn) + 
+                    " " + str(peak.reduced_sn) + " " + str(peak.redshift) 
+                    + " " + str(OII_flux) + " " + str(OIII_flux) )
+
+        #fileQSO.write('\n' + str([RA[i], 
+        #    DEC[i], int(plate), int(mjd), fiberid[i], z[i], peak[0],peak[4],peak[5],peak[6],spectroflux[i,1], spectroflux[i,3], OII_flux, OIII_flux ]))
         
         plotQSOGal(obj,peak,savedir,em_lines, k)
         #plot_QSOGal(k=k,RA = RA[i],DEC= DEC[i],plate = int(plate), mjd = int(mjd), fiberid = fiberid[i],z=z[i], z_backgal= z_backgal,flux=flux[i,:],wave=wave,synflux=synflux[i,:],ivar= ivar[i,:], \

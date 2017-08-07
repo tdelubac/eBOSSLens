@@ -78,6 +78,13 @@ class peakCandidateGalLAE(peakCandidateGalGal):
         self.locSkew_doublet = np.array([0.0,0.0])      # epsilon
         self.skewSkew_doublet = np.array([0.0,0.0])     # skewness alpha
 
+        self.eq_Width = 0.0								# LyA equivalent width
+        self.flux = 0.0									# LyA flux
+        peak.l_blue_10 = 0.0							# Wavelength at 10% peak flux on blue side
+    	peak.l_red_10 = 0.0								# Wavelength at 10% peak flux on red side
+    	peak.aLambda = 0.0								# A_lambda skewness indicator
+    	peak.skewness = 0.0 							# 3rd order moment around peak
+
     def update(self, cm):
         if self.chiSkew_singlet*cm <= self.chiSkew_doublet:
             self.chiSkew = self.chiSkew_singlet                                           
@@ -114,10 +121,18 @@ class peakCandidateQSOLAE():
 
     # TODO : Fill 
     def __init__(self, x0, sn):
+
         self.sn = sn                            # Original SN from Bolton 2004
         self.wavelength = x0                    # Peak wavelength
-        self.reduced_sn = 0.0                   # Recomputed SN with QSO continuum 3order fit subtraction
+        self.reduced_sn = 0.0                   # Recomputed SN with QSO continuum 3order subtraction
         self.redshift = x0/1215.667 -1          # Redshift of the background emission
+
+        self.eq_Width = 0.0						# LyA equivalent width
+        self.flux = 0.0							# LyA flux
+        peak.l_blue_10 = 0.0					# Wavelength at 10% peak flux on blue side
+    	peak.l_red_10 = 0.0						# Wavelength at 10% peak flux on red side
+    	peak.aLambda = 0.0						# A_lambda skewness indicator
+    	peak.skewness = 0.0 					# 3rd order moment around peak
 
 class peakCandidateQSOGal():
     '''

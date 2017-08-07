@@ -1,4 +1,3 @@
-# TODO: complet the functions / parameters / returns
 def qsoFilter(obj, DR12Q, rchi2_max):
     '''
     objFilter.qsoFilter(obj)

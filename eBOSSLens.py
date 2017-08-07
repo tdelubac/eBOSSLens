@@ -56,7 +56,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         prodCrit:
         QSO_line_width: Typical half-width of QSO strong emission to mask
         minSN: Minimal SN to detect promising peaks
-        threshold_SN: Threshold to select potential multiple background ELG emissions
+        threshold_SN: Threshold to select potential ELG emissions
         jackpotwidth: Width of masking on first lensed features before search for second background source
     Returns:
         returns: Nothing. Raises appropriate exceptions when candidates are discarded.
@@ -118,7 +118,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     else:    
         raise Exception('Error: Foreground/background objects boolean combinations not found.')
 
-    # TODO: delete if above if working
+    # TODO: delete if above is working
     '''
     elif searchLyA and QSOlens:
         peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(obj.wave,SN) if (test > 8.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
@@ -271,11 +271,10 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
                 doPlot, prodCrit)
     elif (not (searchLyA or Jackpot)) and QSOlens:
-        # TODO: complete the function
+        # TODO: complete the function QSOGAL case
         qsoSave(peak_candidates, savedir, doPlot)
+    elif searchLyA and (not Jackpot):
+        lyaSave(obj, peak_candidates, savedir,em_lines, threshold_SN, QSOlens, paper_mode)
     elif Jackpot:
         # TODO: complete the function
         jptSave(doPlot)
-    elif searchLyA and QSOlens and (not Jackpot):
-        # TODO: complete the function
-        lyaSave(doPlot)

@@ -1,4 +1,4 @@
-# Last modification: Xinlun Cheng, 2017
+# Last modifications: Xinlun Cheng/R. A. Meyer 2017 
 # Original author: Romain A. Meyer, 2016, LASTRO, EPFL
 # Spectroscopic lensing systems detection tool
 # Detects OII doublet for galaxy-galaxy lensing systems
@@ -265,16 +265,13 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     if not below_9500:
         raise Exception("Rejected since no peak below 9500 A")
 
-    # Try to infer background redshift and if successful, save the detection
-
+    # Infer background redshift and peak infos, last checks, save the detection(s)
     if not (searchLyA or QSOlens or Jackpot):
         galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
                 doPlot, prodCrit)
     elif (not (searchLyA or Jackpot)) and QSOlens:
-        # TODO: complete the function QSOGAL case
         qsoSave(obj, peak_candidates, savedir,em_lines) 
     elif searchLyA and (not Jackpot):
         lyaSave(obj, peak_candidates, savedir,em_lines, threshold_SN, QSOlens, paper_mode)
     elif Jackpot:
-        # TODO: complete the function
-        jptSave(doPlot)
+        jptSave(obj, peak_candidates, savedir,em_lines) 

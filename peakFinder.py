@@ -157,15 +157,15 @@ class peakCandidateJackpot():
     def __init__(self, x0, sn):
     	self.wavelength = 0.0
 
-        self.sn_1 = sn
-        self.wavelength_1 = x0                    # Peak wavelength
-        self.z_1 = 0.0                     # Redshift of the background emission
-        self.total_sn_1  = 0.0                     # Total SN of all redshifted ELG emissions (OII, OIII, Hb, Ha usually)
+        self.sn_1 = sn                     # SN 1
+        self.wavelength_1 = x0             # Peak wavelength 1
+        self.z_1 = 0.0                     # Redshift of the background emission 1
+        self.total_sn_1  = 0.0             # Total SN of all redshifted ELG emissions (OII, OIII, Hb, Ha usually) 1
 
-        self.sn_2 = 0.0
-        self.wavelength_2 = 0.0                    # Peak wavelength
-        self.z_2 = 0.0                     # Redshift of the background emission
-        self.total_sn_2  = 0.0                     # Total SN of all redshifted ELG emissions (OII, OIII, Hb, Ha usually)
+        self.sn_2 = 0.0                    # SN 2
+        self.wavelength_2 = 0.0            # Peak wavelength 2
+        self.z_2 = 0.0                     # Redshift of the background emission 2 
+        self.total_sn_2  = 0.0             # Total SN of all redshifted ELG emissions (OII, OIII, Hb, Ha usually) 2
 
 
 
@@ -433,19 +433,22 @@ def skewFit(obj, peak, bounds, max_chi2):
 
     # Sharp blue, red tail
     init_skew = [peak.ampSinglet,0.5,2,x0]
-    res_skew = minimize(chi2skew,init_skew,args=(obj.wave[bounds], temp_flux,obj.ivar[bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(1,10),(x0-4,x0+4)])
+    res_skew = minimize(chi2skew,init_skew,args=(obj.wave[bounds], temp_flux,obj.ivar[bounds]), \
+     method='SLSQP', bounds = [(2,50),(0.0,10),(1,10),(x0-4,x0+4)])
     params_skew_a = res_skew.x
     chisq_skew_a = res_skew.fun
 
     # Sharp red, blue tail
     init_skew = [peak.ampSinglet,0.5,-2,x0]
-    res_skew = minimize(chi2skew,init_skew,args=(obj.wave[bounds], temp_flux,obj.ivar[bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-4,x0+4)])
+    res_skew = minimize(chi2skew,init_skew,args=(obj.wave[bounds], temp_flux,obj.ivar[bounds]), \
+        method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-4,x0+4)])
     params_skew_b = res_skew.x
     chisq_skew_b = res_skew.fun
 
     # Double skew symmetric
     init_skew = [peak.ampSinglet,0.5,-2,x0, peak.ampSinglet/2.0,0.5,2,x0+8]
-    res_skew = minimize(chi2skew2,init_skew,args=(obj.wave[bounds], temp_flux,obj.ivar[bounds]), method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-6,x0+6), (2,50),(0.0,10),(1,10),(x0-15,x0+15)])
+    res_skew = minimize(chi2skew2,init_skew,args=(obj.wave[bounds], temp_flux,obj.ivar[bounds]), \
+        method='SLSQP', bounds = [(2,50),(0.0,10),(-10,-1),(x0-6,x0+6), (2,50),(0.0,10),(1,10),(x0-15,x0+15)])
     params_skew_c = res_skew.x
     chisq_skew_c = res_skew.fun
 

@@ -44,7 +44,8 @@ def lyaFlux_eqWidth(obj, peak):
     x0 = peak.wavelength
     bounds = np.linspace(obj.wave2bin(x0)-15,wave2bin(x0)+15,31,dtype = n.int16)
     #compute equivalent width 
-    dwave = np.array([obj.wave[gen_i+1]-obj.wave[gen_i] if gen_i<len(obj.wave)-1 else 0 for gen_i in range(len(obj.wave))])
+    dwave = np.array([obj.wave[gen_i+1]-obj.wave[gen_i] 
+        if gen_i<len(obj.wave)-1 else 0 for gen_i in range(len(obj.wave))])
     eq_Width = np.sum((obj.flux[bounds]/obj.synflux[bounds]-1)*dwave[bounds])
     # compute LyA flux
     temp_fluxes = n.zeros(5)
@@ -125,9 +126,9 @@ def lyaSave(obj, peak_candidates,savedir,em_lines, threshold_SN, QSOlens, paper_
         Nothing.
     '''
     if QSOlens:
-        fileLyA = open(os.path.join(savedir, 'candidates_doublet.txt'), 'a')
+        fileLyA = open(os.path.join(savedir, 'candidates_QSOLAE.txt'), 'a')
     else:
-        fileLyA = open(os.path.join(savedir, 'candidates_doublet.txt'), 'a')
+        fileLyA = open(os.path.join(savedir, 'candidates_GALLAE.txt'), 'a')
 
     n = 0   
     for peak in peak_candidates:
@@ -373,6 +374,7 @@ def plot_QSOLAE(obj,peak, n_peak, QSOlens, paper_mode= True):
         #if QSOlens:
             #p2.set_ylim(-1, np.max(reduced_flux[window]-fit_QSO(wave[window])+1))
 
-    plt.savefig(savedir +'/plots/'+SDSSname(obj.RA,obj.DEC)+ '-' + str(obj.plate) + '-' + str(obj.mjd) + '-' + str(obj.fiberid) + '-' + str(n_peak)+ '.eps', format = 'eps', dpi = 2000)
+    plt.savefig(savedir +'/plots/'+SDSSname(obj.RA,obj.DEC)+ '-' + str(obj.plate) + '-' 
+        + str(obj.mjd) + '-' + str(obj.fiberid) + '-' + str(n_peak)+ '.eps', format = 'eps', dpi = 2000)
 
     plt.close()

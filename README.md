@@ -1,10 +1,11 @@
 # eBOSSLens
 ## Currently under refactoring. Galaxy lensing should be working. 
+## !!! Refactoring is done in structure. Full testing is underway.
 ## Use at own risk
 
 ## TO-DO list:
-* Complete objectifing the code for QSO-Galaxy, Jackpot lensing
-* Full test of all 5 cases
+* QSO-Galaxy is stable on paper candidates (full blind test to do)
+* Full test of all 4 cases (Gal-Gal, Gal-LAE, QSO-LAE, Jackpot)
 * Blind search parallelization optimization
 * Further improve in parameter configuration (i.e. using json config file)
 * Write a better document (invoke function descriptions + minimal example)

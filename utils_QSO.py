@@ -6,7 +6,7 @@ from matplotlib.font_manager import FontProperties
 from utils import *
 
 
-def DR12Q_extractor(path='Superset_DR12Q.fits'):
+def DR12Q_extractor(path):
     hdulist = pf.open(path)
     z_vi_DR12Q = hdulist[1].data.field('Z_VI')
     z_PCA_DR12Q = hdulist[1].data.field('Z_PIPE')
@@ -14,7 +14,6 @@ def DR12Q_extractor(path='Superset_DR12Q.fits'):
     mjd_DR12Q = hdulist[1].data.field('MJD')
     fiber_DR12Q = hdulist[1].data.field('FIBERID')
     return np.transpose(np.vstack((plate_DR12Q,mjd_DR12Q,fiber_DR12Q,z_PCA_DR12Q,z_vi_DR12Q)))
-
 
 def mask_QSO(l_width):
     '''
@@ -49,7 +48,7 @@ def mask_QSO(l_width):
     l_Hb = 4861
     l_OIII_a = 4959
     l_OIII_b = 5007
-    l_NI = 5200
+    l_NeI = 5200
     l_FeVII_a = 5721
     l_FeVII_b = 6087
     l_Ha = 6562.81

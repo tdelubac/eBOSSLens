@@ -5,6 +5,8 @@ from SDSSObject import SDSSObject
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
+from matplotlib import gridspec
+from matplotlib.font_manager import FontProperties
 from utils import SDSSname, make_sure_path_exists
 
 def qsoSave(obj,peak_candidates, savedir, em_lines):
@@ -34,9 +36,9 @@ def qsoSave(obj,peak_candidates, savedir, em_lines):
         dwave = np.array([obj.wave[gen_i+1]-obj.wave[gen_i] if gen_i<len(obj.wave)-1 else 0 for gen_i in range(len(obj.wave))])
         if z_backgal < 1:
             for j in range(4,9):
-                temp_bounds = np.linspace(obj.wave2bin((1+z_backgal)*3727)-j,obj.wave2bin((1+z_backgal)*3727)+j,2*j+1,dtype = n.int16)
+                temp_bounds = np.linspace(obj.wave2bin((1+z_backgal)*3727)-j,obj.wave2bin((1+z_backgal)*3727)+j,2*j+1,dtype = np.int16)
                 temp_fluxes_OII[j-4] = np.sum((obj.flux[temp_bounds]-obj.synflux[temp_bounds])*dwave[temp_bounds])
-                temp_bounds = np.linspace(obj.wave2bin((1+z_backgal)*5007)-j,obj.wave2bin((1+z_backgal)*5007,)+j,2*j+1,dtype = n.int16)
+                temp_bounds = np.linspace(obj.wave2bin((1+z_backgal)*5007)-j,obj.wave2bin((1+z_backgal)*5007,)+j,2*j+1,dtype = np.int16)
                 temp_fluxes_OIII[j-4] = np.sum((obj.flux[temp_bounds]-obj.synflux[temp_bounds])*dwave[temp_bounds])
         OII_flux = np.median(temp_fluxes_OII)
         OIII_flux = np.median(temp_fluxes_OIII)
@@ -96,7 +98,7 @@ def plotQSOGal(obj, peak, savedir,em_lines, n ):
     p1 = plt.subplot(gs[0,:4])
 
     smoothed_flux = np.array([np.mean(obj.flux[ii-2:ii+3]) 
-        for ii in range(len(obj.flux)) if (ii>4 and ii<len(flux)-4)])
+        for ii in range(len(obj.flux)) if (ii>4 and ii<len(obj.flux)-4)])
 
     p1.plot(obj.wave[5:-4], smoothed_flux, 'k', label = 'BOSS Flux', drawstyle='steps-mid')
     p1.plot(obj.wave, obj.synflux, 'r', label = 'PCA fit')
@@ -133,7 +135,7 @@ def plotQSOGal(obj, peak, savedir,em_lines, n ):
     plt.ylabel('Flux [$10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$')
 
     #If Ha is below 9500 A, show it
-    if z>0.44:
+    if obj.z>0.44:
         p3 = plt.subplot(gs[1,1:4])
     else:
         p3 = plt.subplot(gs[1,1:3])
@@ -161,14 +163,14 @@ def plotQSOGal(obj, peak, savedir,em_lines, n ):
     box = p3.get_position()
     p3.set_position([box.x0+0.02,box.y0,box.width*0.9,box.height])
 
-    if z<0.44:
+    if obj.z<0.44:
         p4 = plt.subplot(gs[1,3:4])
         p4.vlines(x = em_lines*(1+z_backgal),ymin= -100,ymax= 100,colors= 'g',linestyles='dashed')
         loc_flux = obj.flux[obj.wave2bin((1+z_backgal)*(6562-10)):obj.wave2bin((1+z_backgal)*(6562+10))]
         p4.plot(obj.wave[obj.wave2bin((1+z_backgal)*(6562-10)):obj.wave2bin((1+z_backgal)*(6562+10))],
             loc_flux,'k', label = 'Ha', drawstyle='steps-mid')
         p4.plot(obj.wave[obj.wave2bin((1+z_backgal)*(6562-10)):obj.wave2bin((1+z_backgal)*(6562+10))],
-            obj.synflux[obj.wave2bin((1+z_backgal)*(6562-10)) :ob.wave2bin((1+z_backgal)*(6562+10))],
+            obj.synflux[obj.wave2bin((1+z_backgal)*(6562-10)) :obj.wave2bin((1+z_backgal)*(6562+10))],
             'r', label = 'Ha', drawstyle='steps-mid')
         if loc_flux != []:
             p4.set_ylim(np.min(loc_flux)-1,np.max(loc_flux)+1)

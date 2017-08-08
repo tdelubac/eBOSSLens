@@ -56,7 +56,7 @@ class peakCandidateGalLAE(peakCandidateGalGal):
     '''
     def __init__(self, x0, sn):
         # Initialize as for classical ELG detection
-        peakCandidateGalGal.__init__(x0,sn):
+        peakCandidateGalGal.__init__(x0,sn)
         # Holders for a skew-normal fit
         self.isSkew = False
 
@@ -253,7 +253,7 @@ def bolEstm(obj, sig, width):
     return SN
 
 
-def qsoContfit(obj, peak, searchLyA, window_width = 40):
+def qsoContfit(obj, peak, searchLyA, sig, window_width = 40):
     '''
     peakFinder.qsoContfit(obj, peak, searchLyA, window_width)
     =============================
@@ -263,21 +263,25 @@ def qsoContfit(obj, peak, searchLyA, window_width = 40):
     Parameters:
         obj: The SDSS object/spectra on which applied the subtraction
         peak: The inquired peak
+        sig: Sigma of gaussian to perform SN max-likelihood 
         searchLyA: True if we search for background LAE, False for backgroung ELGs
         window_width: Half-width (Angstroms) on which the polynomial is fitted
     Returns:
         accept: True if the SN is still high after subtraction. False otherwise.
     '''
-    window = np.linspace(obj.wave2bin(x0)-40,obj.wave2bin(x0)+40,81,dtype = n.int16)
+    x0 = peak.wavelength
+    window = np.linspace(obj.wave2bin(x0)-window_width,obj.wave2bin(x0)+window_width,2*window_width+1,dtype = np.int16)
     median_local = np.median(obj.reduced_flux[window])
 
     fit_QSO = np.poly1d(np.polyfit(x=obj.wave[window],y=obj.reduced_flux[window],deg=3, \
         w=(np.abs(obj.reduced_flux[window]-median_local)<5)*np.sqrt(obj.ivar[window])) )
     
     new_flux = obj.reduced_flux[window] - fit_QSO(obj.wave[window])
-
-    cj1_new = np.sum(new_flux*kernel(int(len(window)/2),width,NormGauss,len(new_flux))*obj.ivar[window])
-    cj2_new = np.sum(obj.ivar[window]*kernel(int(len(window)/2),width,NormGauss,len(window))**2)
+    
+    NormGauss = gauss(np.linspace(-window_width * 0.5, window_width * 0.5, window_width), 0.0, 1.0,sig ** 2.0)
+    NormGauss = NormGauss / np.sum(NormGauss)
+    cj1_new = np.sum(new_flux*kernel(int(len(window)/2),window_width,NormGauss,len(new_flux))*obj.ivar[window])
+    cj2_new = np.sum(obj.ivar[window]*kernel(int(len(window)/2),window_width,NormGauss,len(window))**2)
     SN_fitted = cj1_new/np.sqrt(cj2_new)
 
     if searchLyA and SN_fitted < 6:
@@ -307,22 +311,21 @@ def backgroundELG(obj, peak, em_lines):
     Returns:
         - Nothing. Updates peak attributes by recording the best emission match.
     '''
-
     for l in em_lines:
         test_z = peak.wavelength/l - 1.0
         if test_z > obj.z:
             quad_SN = 0.0
             for w in em_lines:
                 center_bin = obj.wave2bin(w*(1+test_z))
-                SN_line = np.array(SN[center_bin-2:center_bin+2])
+                SN_line = np.array(obj.SN[center_bin-2:center_bin+2])
                 quad_SN += max(SN_line*(SN_line>0))**2
             quad_SN = np.sqrt(quad_SN)
             if quad_SN > peak.total_sn:
-                 peak.total_sn = quad_SN
-                 peak.z = test_z
+                peak.total_sn = quad_SN
+                peak.redshift = test_z
 
 
-def jackpotLens(obj, peak, peak_candidates em_lines, mask_width_Jackpot = 20, total_SN_threshold = 6):
+def jackpotLens(obj, peak, peak_candidates, em_lines, mask_width_Jackpot = 20, total_SN_threshold = 6):
     '''
     peakFinder.jackpotpLens(obj, peak, em_lines, mask_width_Jackpot = 50):
     =============================
@@ -369,12 +372,11 @@ def jackpotLens(obj, peak, peak_candidates em_lines, mask_width_Jackpot = 20, to
                                 SN_line = np.array(obj.SN[center_bin-2:center_bin+2])*(not nearline(w*(1+test_z_2), width = mask_width_Jackpot))
                                 quad_SN_2 += max(SN_line*(SN_line>0))**2
                         quad_SN_2 = np.sqrt(quad_SN_2)
-                        if quad_SN_2 > peak2.sn + total_SN_threshold:
-                        	peak.wavelength_2 = peak2.wavelength_2
-                        	peak.sn_2 = peak2.sn
+                        if (quad_SN_2 > peak2.sn + total_SN_threshold):
+                            peak.wavelength_2 = peak2.wavelength_2
+                            peak.sn_2 = peak2.sn
                             peak.total_sn_2 = quad_SN_2
                             peak.z_2 = test_z_2
-
                             peak.wavelength = min(peak.wavelength_1, peak.wavelength_2)
 
 

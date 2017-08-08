@@ -1,9 +1,11 @@
+import numpy as np
+
 def qsoFilter(obj, DR12Q, rchi2_max):
     '''
     objFilter.qsoFilter(obj)
     ========================
     Filter out sky or calibration fiber and non-QSO targets
-    Filters QSOs with redshifts not matching DR12Q (Pâris et al. 2016)
+    Filters QSOs with redshifts not matching DR12Q (Paris et al. 2016)
     
     Parameters:
         obj: A SDSSObject instance to select
@@ -14,23 +16,23 @@ def qsoFilter(obj, DR12Q, rchi2_max):
     '''
 
     # Take only QSOs
-    if obj.obj_type[i].startswith('sky') or \
-            obj.obj_type[i].startswith('SPECTROPHOTO_STD') or \
+    if obj.obj_type.startswith('sky') or \
+            obj.obj_type.startswith('SPECTROPHOTO_STD') or \
             (not obj.obj_class.startswith('QSO') ):
         raise Exception("Rejected: Not a proper QSO target")
     # Reject badly fitted QSOs in BOSS pipeline
-    if obj.zwarning[i] != 0 or obj.rchi2[i] > rchi2_max or obj.z_err[i] < 0:
+    if obj.zwarning != 0 or obj.rchi2 > rchi2_max or obj.z_err < 0:
         raise Exception("Rejected: Bad redsfhit fitting")
     # Search for matching QSOs in DR12Q
-    matching_QSOs = [x for x in DR12Q if int(x[0]) == int(self.plate) and
-             int(x[1]) == int(self.mjd) and int(x[2]) == int(self.fid)]
+    matching_QSOs = [x for x in DR12Q if int(x[0]) == int(obj.plate) and
+             int(x[1]) == int(obj.mjd) and int(x[2]) == int(obj.fiberid)]
     # Check that the redshifts match         
-    if len(index) > 0:
-        if n.abs(index[0][3] - obj.z[i]) < 0.005 and \
-                n.abs(index[0][4] - obj.z[i]) > 0.1:
-            continue
+    if len(matching_QSOs) > 0:
+        if np.abs(matching_QSOs[0][3] - obj.z) < 0.005 and \
+                np.abs(matching_QSOs[0][4] - obj.z) > 0.1:
+            raise Exception("Rejected: BOSS redshift does not match visual redshift")
     else:
-        raise Exception("Rejected: .fits redshift does not match DR12Q tabulated redshift")
+        print 'Warning: No matching QSO in the DR12Q dataset'
 
     # Before masking, compute the FWHM of CIV or HBeta depending on redshift:
     #FWHM, l_times_luminosity, HB_wave, params_beta, line_coeff = \
@@ -38,7 +40,6 @@ def qsoFilter(obj, DR12Q, rchi2_max):
 
     #M_BH = 10**(6.91 + n.log10(n.sqrt(5100*l_times_luminosity/1e44)*(FWHM/1000)**2)) # Masses solaires
     #sigma_host = 200*10**((n.log10(M_BH) - 7.92)/3.93) ### km s-1
-
 
     #ivar[i,:] = mask_QSO(ivar=ivar[i,:],z=z[i], l_width = l_width, c0 = c0 , c1=c1,Nmax=Nmax)
 

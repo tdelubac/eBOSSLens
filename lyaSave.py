@@ -5,6 +5,8 @@ from SDSSObject import SDSSObject
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
+from matplotlib import gridspec
+from matplotlib.font_manager import FontProperties
 from utils import SDSSname, make_sure_path_exists
 
 def foregroundELG(obj, peak, em_lines): 
@@ -263,7 +265,7 @@ def plot_QSOLAE(obj,peak, n_peak, QSOlens, paper_mode= True):
     plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}$')
 
     if paper_mode:
-    gs = gridspec.GridSpec(1,3)
+        gs = gridspec.GridSpec(1,3)
 
         smoothed_flux = np.array([np.mean(obj.flux[ii-2:ii+3]) for ii 
             in range(len(obj.flux)) if (ii>4 and ii<len(obj.flux)-4)])

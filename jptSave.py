@@ -5,6 +5,8 @@ from SDSSObject import SDSSObject
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
+from matplotlib import gridspec
+from matplotlib.font_manager import FontProperties
 from utils import SDSSname, make_sure_path_exists
 
 def jptSave(obj, peak_candidates, savedir, em_lines):
@@ -30,7 +32,7 @@ def jptSave(obj, peak_candidates, savedir, em_lines):
             str(obj.fiberid) + str(obj.spectroflux[1]) + " " +
             str(obj.spectroflux[3]) + " " + str(obj.z)+ " " + str(obj.rchi2) + 
             " " + str(peak.wavelength_1) + " " + str(peak.sn_1) + 
-            " " + str(peak.total_sn_1) + " " + str(peak.z_1) 
+            " " + str(peak.total_sn_1) + " " + str(peak.z_1) +
             " " + str(peak.wavelength_2) + " " + str(peak.sn_2) + 
             " " + str(peak.total_sn_2) + " " + str(peak.z_2)) 
 
@@ -40,9 +42,9 @@ def jptSave(obj, peak_candidates, savedir, em_lines):
     #plot_Jackpot(RA= RA[i],DEC=DEC[i],plate =int(plate), mjd=int(mjd), fiberid=fiberid[i], z=z[i],wave=wave, flux =flux[i,:], synflux = synflux[i,:],topdir=topdir,savedir=savedir ,peak = peak, show = plot_show, counter = k)
 
 
-def plot_Jackpot(obj, peak,em_lines savedir, counter):
+def plot_Jackpot(obj, peak,em_lines, savedir, counter):
     '''
-    jptSave.plot_Jackpot(obj, peak,em_lines savedir, counter)
+    jptSave.plot_Jackpot(obj, peak,em_lines, savedir, counter)
     =========================================================
     Plots Jackpot lens candidates
 

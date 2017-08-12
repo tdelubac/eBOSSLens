@@ -80,10 +80,10 @@ class peakCandidateGalLAE(peakCandidateGalGal):
 
         self.eq_Width = 0.0								# LyA equivalent width
         self.flux = 0.0									# LyA flux
-        peak.l_blue_10 = 0.0							# Wavelength at 10% peak flux on blue side
-    	peak.l_red_10 = 0.0								# Wavelength at 10% peak flux on red side
-    	peak.aLambda = 0.0								# A_lambda skewness indicator
-    	peak.skewness = 0.0 							# 3rd order moment around peak
+        self.l_blue_10 = 0.0							# Wavelength at 10% peak flux on blue side
+    	self.l_red_10 = 0.0								# Wavelength at 10% peak flux on red side
+    	self.aLambda = 0.0								# A_lambda skewness indicator
+    	self.skewness = 0.0 							# 3rd order moment around peak
 
     def update(self, cm):
         if self.chiSkew_singlet*cm <= self.chiSkew_doublet:
@@ -129,10 +129,10 @@ class peakCandidateQSOLAE():
 
         self.eq_Width = 0.0						# LyA equivalent width
         self.flux = 0.0							# LyA flux
-        peak.l_blue_10 = 0.0					# Wavelength at 10% peak flux on blue side
-    	peak.l_red_10 = 0.0						# Wavelength at 10% peak flux on red side
-    	peak.aLambda = 0.0						# A_lambda skewness indicator
-    	peak.skewness = 0.0 					# 3rd order moment around peak
+        self.l_blue_10 = 0.0					# Wavelength at 10% peak flux on blue side
+    	self.l_red_10 = 0.0						# Wavelength at 10% peak flux on red side
+    	self.aLambda = 0.0						# A_lambda skewness indicator
+    	self.skewness = 0.0 					# 3rd order moment around peak
 
 class peakCandidateQSOGal():
     '''

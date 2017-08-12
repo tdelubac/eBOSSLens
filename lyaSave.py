@@ -28,7 +28,7 @@ def foregroundELG(obj, peak, em_lines):
     SNlines = 0
     for l in em_lines:
         center_bin = obj.wave2bin(l*(1+z_O2))
-        SNlines += max(SN[center_bin-2:center_bin+2])**2
+        SNlines += max(obj.SN[center_bin-2:center_bin+2])**2
     return np.sqrt(SNlines)
 
 def lyaFlux_eqWidth(obj, peak):
@@ -44,15 +44,15 @@ def lyaFlux_eqWidth(obj, peak):
         - Nothing. Updates the peak attributes.
     '''
     x0 = peak.wavelength
-    bounds = np.linspace(obj.wave2bin(x0)-15,wave2bin(x0)+15,31,dtype = n.int16)
+    bounds = np.linspace(obj.wave2bin(x0)-15,obj.wave2bin(x0)+15,31,dtype = np.int16)
     #compute equivalent width 
     dwave = np.array([obj.wave[gen_i+1]-obj.wave[gen_i] 
         if gen_i<len(obj.wave)-1 else 0 for gen_i in range(len(obj.wave))])
     eq_Width = np.sum((obj.flux[bounds]/obj.synflux[bounds]-1)*dwave[bounds])
     # compute LyA flux
-    temp_fluxes = n.zeros(5)
+    temp_fluxes = np.zeros(5)
     for j in range(4,9):
-        temp_bounds = np.linspace(obj.wave2bin(x0)-j,obj.wave2bin(x0)+j,2*j+1,dtype = n.int16)
+        temp_bounds = np.linspace(obj.wave2bin(x0)-j,obj.wave2bin(x0)+j,2*j+1,dtype = np.int16)
         temp_fluxes[j-4] = np.sum((obj.flux[temp_bounds]-obj.synflux[temp_bounds])*dwave[temp_bounds])
     flux = np.median(temp_fluxes)
 
@@ -72,12 +72,12 @@ def lyaSkewness(obj,peak):
         - Nothing. Updates the peak attributes.
     '''
     x0 = peak.wavelength
-    bounds = np.linspace(obj.wave2bin(x0)-15,wave2bin(x0)+15,31,dtype = n.int16)
+    bounds = np.linspace(obj.wave2bin(x0)-15,obj.wave2bin(x0)+15,31,dtype = np.int16)
 
     # Skewness indicator (3rd order moment)
     I = np.sum(obj.reduced_flux[bounds])
-    xmean = np.sum(obj.reduced_flux[bounds]*wave[bounds])/I
-    sigma2 = np.sum(obj.reduced_flux[i,bounds]*(wave[bounds] - xmean)**2)/I
+    xmean = np.sum(obj.reduced_flux[bounds]*obj.wave[bounds])/I
+    sigma2 = np.sum(obj.reduced_flux[bounds]*(obj.wave[bounds] - xmean)**2)/I
     S = np.sum(obj.reduced_flux[bounds]*(obj.wave[bounds] - xmean)**3)/(I*np.sign(sigma2)*(np.abs(sigma2)**1.5))
 
     # A_lambda (Rhoads et al. 2003)
@@ -135,7 +135,7 @@ def lyaSave(obj, peak_candidates,savedir,em_lines, threshold_SN, QSOlens, paper_
     n = 0   
     for peak in peak_candidates:
         # Test if Foreground is likely or not
-        if (foregroundELG(obj,peak,em_lines) > peak.sn + treshold_SN):
+        if (foregroundELG(obj,peak,em_lines) > peak.sn + threshold_SN):
             raise Exception('Rejected as attributed to foreground ELG (OII)')
         else:
             # Compute apparent LyA flux and eq_width
@@ -143,7 +143,7 @@ def lyaSave(obj, peak_candidates,savedir,em_lines, threshold_SN, QSOlens, paper_
             # Compute skewness indicators
             lyaSkewness(obj,peak)
             # Save and plot
-            plotQSOLAE(obj,peak, n, QSOlens, paper_mode)
+            plot_QSOLAE(obj,peak,n, QSOlens, savedir, paper_mode)
             n+=1
             # RA DEC plate mjd fiber 
             fileLyA.write('\n' + str(obj.RA) + " " + str(obj.DEC) +
@@ -156,7 +156,6 @@ def lyaSave(obj, peak_candidates,savedir,em_lines, threshold_SN, QSOlens, paper_
                     " " + str(peak.l_blue_10) + " " + str(peak.l_red_10) + 
                     " " + str(peak.aLambda) + " " + str(peak.skewness)) 
     fileLyA.close()
-
 
     # TODO: complete the function/parameters/returns
     '''
@@ -234,9 +233,9 @@ def lyaSave(obj, peak_candidates,savedir,em_lines, threshold_SN, QSOlens, paper_
 
 
 #def plot_QSOLAE(RA,DEC,z,flux,wave,synflux,x0,ivar, reduced_flux,window,peak,params,params_skew, topdir, savedir, n_peak, plate, mjd, fiberid,c0,c1,Nmax, show = False, paper=True, QSOlens = True):
-def plot_QSOLAE(obj,peak, n_peak, QSOlens, paper_mode= True):
+def plot_QSOLAE(obj,peak, n_peak, QSOlens, savedir, paper_mode= True):
     '''
-    lyaSave.plot_QSOLAE(obj, peak, savedir)
+    lyaSave.plot_QSOLAE(obj,peak, n_peak, QSOlens, savedir, paper_mode= True)
     =============================
     Plot the detection for QSOLAE case
 
@@ -264,6 +263,8 @@ def plot_QSOLAE(obj,peak, n_peak, QSOlens, paper_mode= True):
         ', Dec='+str(obj.DEC) +', $z_{QSO}='+'{:03.3}'.format(obj.z)+ '$')
     plt.ylabel('$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}$')
 
+    x0 = peak.wavelength
+
     if paper_mode:
         gs = gridspec.GridSpec(1,3)
 
@@ -286,6 +287,7 @@ def plot_QSOLAE(obj,peak, n_peak, QSOlens, paper_mode= True):
         p2.plot(obj.wave, obj.flux, 'k', label = 'BOSS Flux', drawstyle='steps-mid')
         p2.plot(obj.wave, obj.synflux, 'r', label = 'PCA fit', drawstyle='steps-mid')
 
+        window = np.linspace(obj.wave2bin(x0)-20,obj.wave2bin(x0)+20,41,dtype = np.int16)
         p2.set_ylim(np.min(obj.flux[window]), np.max(obj.flux[window])+0.5)
         p2.legend(loc='upper right', bbox_to_anchor = (1.3,1.1), ncol = 1, prop=fontP)
         box = p2.get_position()
@@ -351,8 +353,6 @@ def plot_QSOLAE(obj,peak, n_peak, QSOlens, paper_mode= True):
             p3.set_xlim(x0-50,x0+60)
             p3.set_ylim(np.min(obj.synflux[bounds])-2, np.max(obj.flux[bounds])+3)
             plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$', fontsize=18)
-
-
 
         ##### Old code to plot skew fit
         #p2 = plt.subplot(gs[2,:2])

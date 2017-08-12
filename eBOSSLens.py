@@ -33,7 +33,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=4.0, wMask=wMask, em_lines=em_lines,
               bwidth=30.0, bsig=1.2, cMulti=1.04, doPlot=False,
               prodCrit=1000.0, QSO_line_width = 15, minSN = 6.0, threshold_SN = 6.0,
-              jackpotwidth = 20):
+              jackpotwidth = 20, paper_plots = True):
     '''
     eBOSSLens
     =============
@@ -88,8 +88,8 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     obj.mask(wMask)
 
     if QSOlens:
-        obj.mask(mask_QSO(QSO_line_width))
-
+        obj.mask((1+obj.z)*mask_QSO(QSO_line_width))
+    
     # Find peaks
     doublet = None
     # Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks
@@ -100,7 +100,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         width = bwidth
         sig = bsig
     obj.SN = bolEstm(obj, sig, width)
-
+    
     # Select the max likelihood peak depending on the case
     if Jackpot:
         peak_candidates = np.array([peakCandidateJackpot(x0, test) \
@@ -138,9 +138,10 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     # Check hits are not from foreground galaxy or badly fitted QSO
     if QSOlens and searchLyA:
         if checkFore(peak_candidates, em_lines, obj.z):
-            return
+            raise Exception('Rejected: Foreground ELG emission likely')
     # --------------------------------------------------------------------------
     # Search for suitable peak candidates
+
     for peak in peak_candidates:
         x0 = peak.wavelength
         if obj.nearLine(x0):
@@ -153,8 +154,9 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         if QSOlens:
             accept = qsoContfit(obj, peak, sig,searchLyA)
             if not accept:
-                raise Exception('Rejected: Peak detection due to incorrect \
-                    QSO continuum removal')
+                continue
+                #raise Exception('Rejected: Peak detection due to incorrect \
+                    #QSO continuum removal')
         # Special case: QSOlens with background galaxies
         if (not (searchLyA or Jackpot)) and QSOlens:
         	backgroundELG(obj, peak, em_lines)
@@ -270,6 +272,6 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     elif (not (searchLyA or Jackpot)) and QSOlens:
         qsoSave(obj, peak_candidates, savedir,em_lines) 
     elif searchLyA and (not Jackpot):
-        lyaSave(obj, peak_candidates, savedir,em_lines, threshold_SN, QSOlens, paper_mode)
+        lyaSave(obj, peak_candidates, savedir,em_lines, threshold_SN, QSOlens, paper_plots)
     elif Jackpot:
         jptSave(obj, peak_candidates, savedir,em_lines) 

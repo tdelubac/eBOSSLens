@@ -75,6 +75,8 @@ def mask_QSO(l_width):
         [4490 - l_width, 4490 + l_width], [5080 -l_width, 5080 +l_width],\
         ])
 
+
+
     #Mask the above emission lines of QSO's
     #ivar[wave2bin((1+z)*(l_LyA -2.5*l_width),c0,c1,Nmax):wave2bin((1+z)*(l_LyA +2.5*l_width),c0,c1,Nmax)] = 0
     #ivar[wave2bin((1+z)*(l_NV -0.5*l_width),c0,c1,Nmax):wave2bin((1+z)*(l_NV +0.5*l_width),c0,c1,Nmax)] = 0

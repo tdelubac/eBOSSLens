@@ -32,7 +32,7 @@ wMask = np.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
               datadir, max_chi2=4.0, wMask=wMask, em_lines=em_lines,
               bwidth=30.0, bsig=1.2, cMulti=1.04, doPlot=False,
-              prodCrit=1000.0, QSO_line_width = 15, minSN = 6.0, threshold_SN = 6.0,
+              prodCrit=1000.0, QSO_line_width = 15, minSN = 6.0, threshold_SN = 1.5,
               jackpotwidth = 20, paper_plots = True):
     '''
     eBOSSLens
@@ -80,7 +80,6 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         accept = qsoFilter(obj, DR12Q, 10)
     else:
         accept = genFilter(obj)
-        obj.mask(wMask)
     #if not accept:
     #    raise Exception("Rejected by filter")
 
@@ -89,7 +88,11 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
 
     if QSOlens:
         obj.mask((1+obj.z)*mask_QSO(QSO_line_width))
-    
+    if Jackpot:
+        width_mask = 40
+        em_lines_mask = np.concatenate((em_lines.reshape(5,1)-width_mask*0.5 ,em_lines.reshape(5,1)-width_mask*0.5)   , axis =1)
+        obj.mask((1+obj.z)*em_lines_mask)
+
     # Find peaks
     doublet = None
     # Bolton 2004: S/N of maximum likelihood estimator of gaussian peaks

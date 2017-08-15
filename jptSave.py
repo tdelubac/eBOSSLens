@@ -27,9 +27,9 @@ def jptSave(obj, peak_candidates, savedir, em_lines):
 
     fileJpt = open(os.path.join(savedir, 'candidates_Jackpot.txt'), 'a')
     for peak in peak_candidates:
-        fileLyA.write('\n' + str(obj.RA) + " " + str(obj.DEC) +
+        fileJpt.write('\n' + str(obj.RA) + " " + str(obj.DEC) +
             " " + str(obj.plate) + " " + str(obj.mjd) + " " +
-            str(obj.fiberid) + str(obj.spectroflux[1]) + " " +
+            str(obj.fiberid)+ " " + str(obj.spectroflux[1]) + " " +
             str(obj.spectroflux[3]) + " " + str(obj.z)+ " " + str(obj.rchi2) + 
             " " + str(peak.wavelength_1) + " " + str(peak.sn_1) + 
             " " + str(peak.total_sn_1) + " " + str(peak.z_1) +
@@ -84,7 +84,7 @@ def plot_Jackpot(obj, peak,em_lines, savedir, counter):
 
     make_sure_path_exists(savedir +'/plots/')
 
-    plt.savefig(savedir +'/plots/'+SDSSname(RA,DEC)+ '-' + str(obj.plate) 
+    plt.savefig(savedir +'/plots/'+SDSSname(obj.RA,obj.DEC)+ '-' + str(obj.plate) 
         + '-' + str(obj.mjd) + '-' + str(obj.fiberid) + '-'+str(counter) +'.png')
     plt.close()
 

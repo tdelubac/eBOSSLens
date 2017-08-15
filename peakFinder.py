@@ -155,7 +155,8 @@ class peakCandidateJackpot():
     A class for all possible candidates of peaks found in the Jackpot case (galaxy lensing 2 ELG at different z)
     '''
     def __init__(self, x0, sn):
-    	self.wavelength = 0.0
+    	self.wavelength = x0
+        self.sn = sn
 
         self.sn_1 = sn                     # SN 1
         self.wavelength_1 = x0             # Peak wavelength 1
@@ -190,6 +191,7 @@ def combNear(pcList):
                 pcList = np.delete(pcList, k+1)
                 k = k-1
         k = k+1
+
     return pcList
 
 
@@ -352,7 +354,7 @@ def jackpotLens(obj, peak, peak_candidates, em_lines, mask_width_Jackpot = 20, t
             for w in em_lines:
                 if w*(1+test_z) <= 9500:
                     center_bin = obj.wave2bin(w*(1+test_z))
-                    SN_line = np.array(obj.SN[center_bin-2:center_bin+2])* (not nearline(w*(1+test_z), width= mask_width_Jackpot))
+                    SN_line = np.array(obj.SN[center_bin-2:center_bin+2])* (not obj.nearLine(w*(1+test_z), width= mask_width_Jackpot))
                     quad_SN_1 += max(SN_line*(SN_line>0))**2
             quad_SN_1 = np.sqrt(quad_SN_1)
             if quad_SN_1 > peak.sn_1 + total_SN_threshold:
@@ -369,7 +371,7 @@ def jackpotLens(obj, peak, peak_candidates, em_lines, mask_width_Jackpot = 20, t
                         for w in em_lines:
                             if w*(1+test_z_2) < 9500:
                                 center_bin = obj.wave2bin(w*(1+test_z_2))
-                                SN_line = np.array(obj.SN[center_bin-2:center_bin+2])*(not nearline(w*(1+test_z_2), width = mask_width_Jackpot))
+                                SN_line = np.array(obj.SN[center_bin-2:center_bin+2])*(not obj.nearLine(w*(1+test_z_2), width = mask_width_Jackpot))
                                 quad_SN_2 += max(SN_line*(SN_line>0))**2
                         quad_SN_2 = np.sqrt(quad_SN_2)
                         if (quad_SN_2 > peak2.sn + total_SN_threshold):

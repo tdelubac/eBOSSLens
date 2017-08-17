@@ -17,9 +17,9 @@
 * The user must call the main.py file to launch the code. The main.py must be provided with a txt file containing either plates/mjd in two columns for a full plate search or plates/mjd/fiberid for specific searches. Please note that at least two entries are necessary at the moment. 
 * The main search is located in eBOSSLens.eBOSSLens(...)
 * The type of background and foreground object is a galaxy by default. To change it, use the options:
-** --qso for a foreground QSO
-** --jpt for a Jackpot search (two background ELGs)
-** --lya for a background LAE
+ --qso for a foreground QSO
+ --jpt for a Jackpot search (two background ELGs)
+ --lya for a background LAE
 * The user must also provide a saving directory with --savedir
 
 ## Minimal examples

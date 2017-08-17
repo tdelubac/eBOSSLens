@@ -1,9 +1,6 @@
 # eBOSSLens
-## Currently under refactoring. Galaxy lensing should be working. 
-## Refactoring is done in structure. Optimization is underway.
-## Use at own risk
-
-
+## Refactoring is finished. Optimization is underway.
+## All cases should be stable. Use at own risk
 
 ## TO-DO list:
 * Full search on all cases

@@ -36,7 +36,8 @@ wMask = n.array([[5570.0, 5590.0], [5880.0, 5905.0], [6285.0, 6315.0],
                  [9217.0, 9237.0], [9300.0, 9330.0], [9365.0, 9385.0],
                  [9425.0, 9445.0], [9777.0, 9797.0]])
 # Strong emission lines should also be masked
-eMask = n.array([4103.0, 4342.0, 4863.0, 6563.0, 5008.0, 4960.0, 4364.0])
+eMask = n.array([4103.0, 4342.0, 4863.0, 6563.0, 5008.0, 4960.0, 4364.0, 5877.0,
+                 6585.0, 6680.0])
 
 
 def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,

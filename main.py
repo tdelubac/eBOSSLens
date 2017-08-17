@@ -60,7 +60,7 @@ if __name__ == "__main__":
     bsig = setArg(args.s, 1.2)
     dataversion = setArg(args.dataversion, 'v5_7_0')
     datadir = setArg(args.datadir, '/SCRATCH')
-    savedir = setArg(args.savedir, '../RefactorTest')
+    #savedir = setArg(args.savedir, '../RefactorTest')
     lya = setArg(args.lya, False)
     qso = setArg(args.qso, False)
     jpt = setArg(args.jpt, False)

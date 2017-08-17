@@ -206,7 +206,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     # Try to infer background redshift
     if not (searchLyA or QSOlens or Jackpot):
         galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
-                doPlot, prodCrit)
+                doPlot, SN, prodCrit)
     elif (not (searchLyA or Jackpot)) and QSOlens:
         # TODO: complete the function
         qsoSave(peak_candidates, savedir, doPlot)

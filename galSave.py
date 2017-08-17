@@ -21,10 +21,7 @@ def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
             raise Exception("Rejected by comparing to other fibers")
         z_s = peak_candidates[doublet_index].wavelength / 3727.24 - 1.0
         # Find peak near infered OIII 5008
-        o3wave = 0.0
-        o3sig = 0.0
-        if (1.0 + z_s) * 5008.0 < 9200.0:
-            o3wave, o3sig = _findPeak(obj, (1.0 + z_s) * 5008.0, sn, width=10.0)
+        o3wave, o3sig = _findPeak(obj, (1.0 + z_s) * 5008.0, sn, width=10.0)
         detection = _doubletSave(obj, z_s, peak_candidates, doublet_index,
                                  savedir, preProd, nxtProd, o3wave, o3sig)
         detection = _dblmultSave(obj, z_s, peak_candidates, savedir,

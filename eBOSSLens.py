@@ -80,8 +80,6 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
         accept = qsoFilter(obj, DR12Q, 10)
     else:
         accept = genFilter(obj)
-    #if not accept:
-    #    raise Exception("Rejected by filter")
 
     # Mask BOSS spectra glitches + Sky
     obj.mask(wMask)
@@ -123,19 +121,6 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
     else:    
         raise Exception('Error: Foreground/background objects boolean combinations not found.')
 
-    # TODO: delete if above is working
-    '''
-    elif searchLyA and QSOlens:
-        peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(obj.wave,SN) if (test > 8.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
-    elif searchLyA == False and QSOlens:
-        peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(obj.wave,SN) if (test>6.0 and  (l_LyA*(1+obj.z[i])+300)<x0<9500)])
-    elif searchLyA == True and QSOlens == False:
-        peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0) for x0,test in zip(obj.wave,SN) if (test>8.0 and  3600 < x0 < 4800)])
-    elif Jackpot == True:
-        # x0 z1 z2 Quad_SN2 SN0->Quad_SN1  free free
-        peak_candidates = n.array([(x0,0.0,0.0,0.0,0.0,0.0,test) for x0,test in zip(obj.wave,SN) if test>8.0])
-    '''
-
     # Keep the center
     peak_candidates = combNear(peak_candidates)
     # Check hits are not from foreground galaxy or badly fitted QSO
@@ -158,8 +143,6 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
             accept = qsoContfit(obj, peak, sig,searchLyA)
             if not accept:
                 continue
-                #raise Exception('Rejected: Peak detection due to incorrect \
-                    #QSO continuum removal')
         # Special case: QSOlens with background galaxies
         if (not (searchLyA or Jackpot)) and QSOlens:
         	backgroundELG(obj, peak, em_lines)

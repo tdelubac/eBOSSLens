@@ -12,7 +12,7 @@ import numpy as np
 import os
 from SDSSObject import SDSSObject
 from objFilter import qsoFilter, genFilter
-from peakFinder import bolEstm, peakCandidateGalGal, peakCandidateQSOGal, \
+from peakFinder import bolEstm, peakCandidateGalGal, peakCandidateGalLAE, \
     peakCandidateQSOLAE, peakCandidateQSOGal, peakCandidateJackpot, \
     combNear, checkFore, qsoContfit, backgroundELG, jackpotLens,  \
     doubletO2, skewFit
@@ -193,7 +193,7 @@ def eBOSSLens(plate, mjd, fiberid, datav, searchLyA, QSOlens, Jackpot, savedir,
             doubletO2(obj, peak, bounds, max_chi2)
         # If looking at LAE, test a skew-normal profile as well
         if searchLyA and (not QSOlens):
-            skewFit(obj, peak)
+            skewFit(obj, peak,bounds,max_chi2)
 
     # Compare the fitting results
     if not (QSOlens or Jackpot):

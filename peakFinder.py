@@ -1,7 +1,7 @@
 import itertools as it
 import numpy as np
-from utils import gauss, kernel
-
+from utils import gauss, kernel, chi2skew2, chi2skew
+from scipy.optimize import minimize
 
 class peakCandidateGalGal():
     '''
@@ -56,7 +56,7 @@ class peakCandidateGalLAE(peakCandidateGalGal):
     '''
     def __init__(self, x0, sn):
         # Initialize as for classical ELG detection
-        peakCandidateGalGal.__init__(x0,sn)
+        peakCandidateGalGal.__init__(self,x0,sn)
         # Holders for a skew-normal fit
         self.isSkew = False
 

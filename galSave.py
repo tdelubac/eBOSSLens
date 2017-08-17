@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 
 
 def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
-            doPlot, prodCrit=0.6):
+            doPlot, sn, prodCrit=0.6):
     detection = False
     preProd = 1.0
     nxtProd = 1.0
@@ -20,8 +20,13 @@ def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
         if preProd + nxtProd > prodCrit:
             raise Exception("Rejected by comparing to other fibers")
         z_s = peak_candidates[doublet_index].wavelength / 3727.24 - 1.0
+        # Find peak near infered OIII 5008
+        o3wave = 0.0
+        o3sig = 0.0
+        if (1.0 + z_s) * 5008.0 < 9200.0:
+            o3wave, o3sig = _findPeak(obj, (1.0 + z_s) * 5008.0, sn, width=10.0)
         detection = _doubletSave(obj, z_s, peak_candidates, doublet_index,
-                                 savedir, preProd, nxtProd)
+                                 savedir, preProd, nxtProd, o3wave, o3sig)
         detection = _dblmultSave(obj, z_s, peak_candidates, savedir,
                                  detection, em_lines)
     elif len(peak_candidates) > 1:
@@ -54,7 +59,20 @@ def galSave(doublet, obj, peak_candidates, doublet_index, savedir, em_lines,
             galSaveflux(obj.reduced_flux[bd], obj.fiberid, savedir)
 
 
-def _doubletSave(obj, z_s, peak_candidates, doublet_index, savedir, pP, nP):
+def _findPeak(obj, waveHint, sn, width=10.0):
+    tmp = [obj.wave2bin(waveHint - 10.0), obj.wave2bin(waveHint + 10.0)]
+    try:
+        index = np.argmax(sn[tmp[0]: tmp[1]])
+        resw = obj.wave[tmp[0]: tmp[1]][index]
+        ress = sn[tmp[0]: tmp[1]][index]
+    except Exception:
+        resw = 0.0
+        ress = 0.0
+    return resw, ress
+
+
+def _doubletSave(obj, z_s, peak_candidates, doublet_index, savedir, pP, nP, o3w,
+                 o3s):
     score = 0.0
     detection = False
     fileD = open(os.path.join(savedir, 'candidates_doublet.txt'), 'a')
@@ -66,7 +84,8 @@ def _doubletSave(obj, z_s, peak_candidates, doublet_index, savedir, pP, nP):
                     str(obj.DEC) + " " + str(obj.z) + " " + str(obj.plate) +
                     " " + str(obj.mjd) + " " + str(obj.fiberid) + " " +
                     str(peak_candidates[doublet_index].wavDoublet[0]) + " " +
-                    str(pP) + " " + str(nP) + " " + str(obj.sn) + "\n")
+                    str(pP) + " " + str(nP) + " " + str(obj.sn) + " " +
+                    str(o3w) + " " + str(o3s) + "\n")
     fileD.close()
     return detection
 
@@ -152,13 +171,13 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd, nxtProd,
     # If doublet, plot in two different windows
     else:
         # Plot currently inspecting spectra
-        plt.figure(figsize=(14, 6))
+        plt.figure(figsize=(14, 4))
         plt.suptitle('RA=' + str(obj.RA) + ', Dec=' + str(obj.DEC) +
                      ', Plate=' + str(obj.plate) + ', Fiber='+str(obj.fiberid) +
                      ', MJD=' + str(obj.mjd) + '\n$z=' + str(obj.z) + ' \pm' +
                      str(obj.z_err) + '$, Class=' + str(obj.obj_class))
         # Reduced flux overall
-        ax1 = plt.subplot2grid((2, 3), (0, 0), colspan=2)
+        ax1 = plt.subplot2grid((1, 3), (0, 0), colspan=2)
         ax1.plot(obj.wave[10:-10], obj.reduced_flux[10:-10], 'k')
         ax1.plot(obj.wave, fit, 'r')
         ax1.set_xlabel('$\lambda \, [\AA]$ ')
@@ -166,7 +185,7 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd, nxtProd,
             '$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$')
         ax1.set_xlim([np.min(obj.wave), np.max(obj.wave)])
         # Reduced flux detail
-        ax2 = plt.subplot2grid((2, 3), (0, 2))
+        ax2 = plt.subplot2grid((1, 3), (0, 2))
         ax2.set_xlabel('$\lambda \, [\AA]$ ')
         ax2.locator_params(tight=True)
         ax2.set_xlim([peak_candidates[doublet_index].wavelength - 30.0,
@@ -176,23 +195,6 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd, nxtProd,
         ax2.set_ylim([-5, 10])
         ax2.vlines(x=obj.zline['linewave'] * (1.0 + obj.z), ymin=-10, ymax=10,
                    colors='g', linestyles='dashed')
-        # Flux overall
-        ax3 = plt.subplot2grid((2, 3), (1, 0), colspan=2)
-        ax3.plot(obj.wave[10:-10], obj.flux[10:-10], 'k')
-        ax3.plot(obj.wave, obj.synflux, 'r')
-        ax3.set_xlabel('$\lambda \, [\AA]$ ')
-        ax3.set_ylabel(
-            '$f_{\lambda}\, (10^{-17} erg\, s^{-1} cm^{-2} Ang^{-1}$')
-        ax3.set_xlim([np.min(obj.wave), np.max(obj.wave)])
-        # Flux detail
-        ax4 = plt.subplot2grid((2, 3), (1, 2))
-        ax4.set_xlabel('$\lambda \, [\AA]$ ')
-        ax4.locator_params(tight=True)
-        ax4.set_xlim([peak_candidates[doublet_index].wavelength - 30.0,
-                      peak_candidates[doublet_index].wavelength + 30.0])
-        ax4.plot(obj.wave, obj.flux, 'k')
-        ax4.plot(obj.wave, obj.synflux, 'r')
-        ax4.set_ylim([-5, 10])
         # Plot previous one
         if obj.fiberid != 1:
             objPre = SDSSObject(obj.plate, obj.mjd, obj.fiberid - 1,
@@ -209,32 +211,6 @@ def plotGalaxyLens(doublet, obj, savedir, peak_candidates, preProd, nxtProd,
                                  str(obj.mjd) + '-' + str(obj.fiberid) +
                                  '.png'))
         plt.close()
-
-
-def compSpec(obj, peak, width=2.0):
-    bounds = np.arange(obj.wave2bin(peak.wavDoublet.min() - width *
-                                    np.sqrt(peak.varDoublet)),
-                       obj.wave2bin(peak.wavDoublet.max() + width *
-                                    np.sqrt(peak.varDoublet)), 1.0, dtype=int)
-    nowFlux = obj.reduced_flux[bounds]
-    nowLeng = np.sqrt(np.dot(nowFlux, nowFlux))
-    if obj.fiberid != 1:
-        objPre = SDSSObject(obj.plate, obj.mjd, obj.fiberid - 1,
-                            obj.dataVersion, obj.baseDir)
-        preFlux = objPre.reduced_flux[bounds]
-        preLeng = np.sqrt(np.dot(preFlux, preFlux))
-        preProd = np.dot(preFlux, nowFlux) / (preLeng * nowLeng)
-    else:
-        preProd = 0.0
-    if obj.fiberid != 1000:
-        objNxt = SDSSObject(obj.plate, obj.mjd, obj.fiberid + 1,
-                            obj.dataVersion, obj.baseDir)
-        nxtFlux = objNxt.reduced_flux[bounds]
-        nxtLeng = np.sqrt(np.dot(nxtFlux, nxtFlux))
-        nxtProd = np.dot(nxtFlux, nowFlux) / (nxtLeng * nowLeng)
-    else:
-        nxtProd = 0.0
-    return preProd, nxtProd
 
 
 def fitcSpec(obj, peak, width=2.0):

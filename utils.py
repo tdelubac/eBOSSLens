@@ -40,7 +40,6 @@ def skew(x,A,w,a,eps):
     phi = 0.5*(1+sp.erf(a*(x-eps)/(w*np.sqrt(2))))
     return A*2*gauss(x,eps,1/np.sqrt(2*np.pi),w**2)*phi/w
 
-
 # Skew normal doublet profile
 def skew2(x,A1,w1,a1,eps1,A2,w2,a2,eps2):
     return skew(x,A1,w1,a1,eps1) + skew(x,A2,a2,w2,eps2)

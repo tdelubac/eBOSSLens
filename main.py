@@ -61,14 +61,19 @@ if __name__ == "__main__":
     bsig = setArg(args.s, 1.2)
     dataversion = setArg(args.dataversion, 'v5_7_0')
     datadir = setArg(args.datadir, '/SCRATCH')
-    savedir = setArg(args.savedir, '../FullSearch')
+    savedir = setArg(args.savedir, '../DefaultSaving')
     lya = setArg(args.lya, False)
     qso = setArg(args.qso, False)
     jpt = setArg(args.jpt, False)
     # Read and begin
     platemjd = np.loadtxt(pmfile, dtype=int)
     for each in platemjd:
-        fiberid = np.arange(1, 1001, 1, dtype=int)
+        if len(each) == 3:
+            fiberid = [each[2]]
+        elif len(each) == 2:
+            fiberid = np.arange(1, 1001, 1, dtype=int)
+        else:
+            raise Exception('Aborted: Incorrect pm(f) file length.')
         args = []
         for fid in fiberid:
             args.append((each[0], each[1], fid, dataversion, datadir, savedir,

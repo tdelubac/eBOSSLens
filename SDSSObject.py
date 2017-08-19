@@ -82,8 +82,12 @@ class SDSSObject():
         self.zline = zlineList[np.where(zlineList['fiberid'] == self.fiberid)]
         # Additional processing
         self.reduced_flux = self.flux - self.synflux
+        # Additional holder for future QSO continuum removal if needed
+        self.reduced_flux_QSO = self.reduced_flux
         self.nMax = len(self.flux)
-        self.sn = np.nanmean(self.flux * self.ivar)
+        self.snSpectra = np.nanmean(self.flux * self.ivar)
+        # Holder for later of SN array
+        self.SN = np.zeros(len(self.wave))
 
     def wave2bin(self, waveLength):
         '''

@@ -85,6 +85,7 @@ class SDSSObject():
         # Additional holder for future QSO continuum removal if needed
         self.reduced_flux_QSO = self.reduced_flux
         self.nMax = len(self.flux)
+        self.snSpectra = np.nanmean(self.flux * self.ivar)
         # Holder for later of SN array
         self.SN = np.zeros(len(self.wave))
 
@@ -120,7 +121,7 @@ class SDSSObject():
         for each in lineList:
             self.ivar[self.wave2bin(each[0]): self.wave2bin(each[1])] = 0
 
-    def nearLine(self, x0, width=10.0):
+    def nearLine(self, x0, width=5.0):
         '''
         nearLine(mjd, plate, i, x0, obj, width=10.0)
         ============================================
@@ -132,12 +133,8 @@ class SDSSObject():
         Returns:
             a boolean of whether near or not
         '''
-        crit = []
-        crit.append(abs(self.zline['linewave'] * (1 + self.z) - x0) < width)
-        crit.append(self.zline['lineew'] / self.zline['lineew_err'] > 6.0)
-        crit.append(self.zline['lineew_err'] > 0)
-        match = np.logical_and.reduce(crit)
-        if np.any(match):
+        crit = abs(self.zline['linewave'] * (1 + self.z) - x0) < width
+        if np.any(crit):
             return True
         else:
             return False

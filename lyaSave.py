@@ -157,82 +157,6 @@ def lyaSave(obj, peak_candidates,savedir,em_lines, threshold_SN, QSOlens, paper_
                     " " + str(peak.aLambda) + " " + str(peak.skewness)) 
     fileLyA.close()
 
-    # TODO: complete the function/parameters/returns
-    '''
-        if QSOlens:
-            fileLyA = open(topdir + savedir +  '/candidates_QSO_LyA.txt','a')
-        else:
-            fileLyA = open(topdir + savedir +  '/candidates_LAE.txt','a')
-        n_peak = 1
-        for peak in peak_candidates:
-            x0 = peak[0]
-            z_O2 = x0/3727.24 - 1.0
-            # compute SN of Ha, Hb, OIII to conclude if LyA candidate is or not OII at low-redshift
-            SNlines = 0
-            em_lines = n.array([4861.325,5006.843,6562.801])
-            for l in em_lines:
-                center_bin = wave2bin(l*(1+z_O2),c0,c1,Nmax)
-                SNlines += max(SN[center_bin-2:center_bin+2])**2
-            SNlines = n.sqrt(SNlines)
-            if SNlines < 100:
-                if n.abs(peak[9]) > n.abs(peak[13]):
-                    skewness = peak[9]
-                else:
-                    skewness = peak[13]
-                params = peak[1:6]
-                params_skew = peak[7:15]
-                if not(n.any(params) and n.any(params_skew)):
-                    continue
-                bounds = n.linspace(wave2bin(x0,c0,c1,Nmax)-15,wave2bin(x0,c0,c1,Nmax)+15,31,dtype = n.int16)
-                #compute equivalent width before manipulating the spectra
-                dwave = n.array([wave[gen_i+1]-wave[gen_i] if gen_i<len(wave)-1 else 0 for gen_i in range(len(wave))])
-                eq_Width = n.sum((flux[i,bounds]/synflux[i,bounds]-1)*dwave[bounds])
-                # compute LyA flux
-                temp_fluxes = n.zeros(5)
-                for j in range(4,9):
-                    temp_bounds = n.linspace(wave2bin(x0,c0,c1,Nmax)-j,wave2bin(x0,c0,c1,Nmax)+j,2*j+1,dtype = n.int16)
-                    temp_fluxes[j-4] = n.sum((flux[i,temp_bounds]-synflux[i,temp_bounds])*dwave[temp_bounds])
-                lyA_flux = n.median(temp_fluxes)
-                #compute skewness indicator (on reduced flux but without 3rd order fit (which is meant for bad fit QSO and not present in final candidates)
-                I = n.sum(reduced_flux[i,bounds])
-                xmean = n.sum(reduced_flux[i,bounds]*wave[bounds])/I
-                sigma2 = n.sum(reduced_flux[i,bounds]*(wave[bounds] - xmean)**2)/I
-                S = n.sum(reduced_flux[i,bounds]*(wave[bounds] - xmean)**3)/(I*n.sign(sigma2)*n.abs(sigma2)**1.5)
-                local_wave = wave[bounds]
-                local_flux = reduced_flux[i,bounds]
-                peak_index = local_flux.argmax()
-                F = 0.1*local_flux[peak_index]
-                #Find blue and red 10% peak flux
-                f = 10*F
-                k = peak_index
-                while f > F and 0<k:
-                    k = k-1
-                    f = local_flux[k]
-                a = (local_flux[k+1]-local_flux[k])/(local_wave[k+1]-local_wave[k])
-                b = local_flux[k] - a*local_wave[k]
-                l_blue_10 = (F-b)/a
-                k = peak_index
-                f = 10*F
-                while f > F and k<len(local_flux)-1:
-                    k = k+1
-                    f = local_flux[k]
-                a = (local_flux[k]-local_flux[k-1])/(local_wave[k]-local_wave[k-1])
-                b = local_flux[k-1] - a*local_wave[k-1]
-                l_red_10 = (F-b)/a
-                Sw = S*(l_red_10-l_blue_10)
-                a_lambda = (l_red_10-local_wave[peak_index])/(local_wave[peak_index]-l_blue_10)
-                # save the parameters
-                fileLyA.write('\n' + str([peak[0],peak[6],z[i], SNlines ,RA[i], DEC[i], int(plate), int(mjd), fiberid[i],params[0],params[1],params[2],params[3],params[4],
-                                params_skew[0],params_skew[1],params_skew[2],params_skew[3],params_skew[4],params_skew[5],params_skew[6],params_skew[7],peak[15],peak[16],peak[17],peak[18], skewness, S, Sw, a_lambda,rchi2[i],peak[19],spectroflux[i,1], spectroflux[i,3],lyA_flux]))
-                # Make the graph
-                plot_QSOLAE(RA= RA[i],DEC = DEC[i],z=z[i],flux=flux[i,:],wave=wave,synflux=synflux[i,:],x0= x0, ivar = ivar[i,:], reduced_flux = reduced_flux[i,:],window=window,peak =peak,
-                    params = params,params_skew=params_skew, topdir = topdir, savedir = savedir, n_peak = n_peak, plate = int(plate), mjd = int(mjd), fiberid = fiberid[i],c0=c0,c1=c1,Nmax=Nmax, show = plot_show, paper = paper, QSOlens = QSOlens)
-            n_peak = n_peak +1
-        fileLyA.close()
-    '''
-
-
-#def plot_QSOLAE(RA,DEC,z,flux,wave,synflux,x0,ivar, reduced_flux,window,peak,params,params_skew, topdir, savedir, n_peak, plate, mjd, fiberid,c0,c1,Nmax, show = False, paper=True, QSOlens = True):
 def plot_QSOLAE(obj,peak, n_peak, QSOlens, savedir, paper_mode= True):
     '''
     lyaSave.plot_QSOLAE(obj,peak, n_peak, QSOlens, savedir, paper_mode= True)
@@ -249,9 +173,6 @@ def plot_QSOLAE(obj,peak, n_peak, QSOlens, savedir, paper_mode= True):
     Returns:
         Nothing. 
     '''
-    
-    #if show ==False:
-    #    mpl.use('Agg')
     
     make_sure_path_exists(savedir +'/plots/')
 
@@ -353,28 +274,6 @@ def plot_QSOLAE(obj,peak, n_peak, QSOlens, savedir, paper_mode= True):
             p3.set_xlim(x0-50,x0+60)
             p3.set_ylim(np.min(obj.synflux[bounds])-2, np.max(obj.flux[bounds])+3)
             plt.ylabel('$f_{\lambda}\, [10^{-17} erg\, s^{-1} cm^{-2}  \AA^{-1}]$', fontsize=18)
-
-        ##### Old code to plot skew fit
-        #p2 = plt.subplot(gs[2,:2])
-        #if QSOlens:
-            #p2.plot(wave[window], reduced_flux[window]-fit_QSO(wave[window]),'k', label = 'Reduced flux', drawstyle='steps-mid')
-        #else:
-            #p2.plot(wave[window], reduced_flux[window],'k', label = 'Reduced flux')
-        #if 0.0<peak[16]<peak[15]:
-            #p2.plot(wave,gauss2(x=wave,x1=params[0],x2=params[1],A1=params[2],A2=params[3],var=params[4]),'g', label = r'$\chi_D^2 = $' + '{:.4}'.format(peak[16]))
-        #else:
-            #p2.plot(wave,gauss(x=wave, x_0=params[0], A=params[1], var=params[2]),'r', label = r'$\chi_G^2 = $' + '{:.4}'.format(peak[15]) )
-        #if 0.0<peak[17]<peak[18]:
-            #p2.plot(wave,skew(x=wave,A = params_skew[0], w=params_skew[1], a=params_skew[2], eps=params_skew[3]), 'b', label =r'$\chi_S^2 = $' + '{:.4}'.format(peak[17]))
-        #else:
-            #p2.plot(wave,skew2(x=wave,A1 = params_skew[0], w1=params_skew[1], a1=params_skew[2], eps1 = params_skew[3], A2 = params_skew[4], w2=params_skew[5], a2=params_skew[6], eps2=params_skew[7]), 'c',label= r'$\chi_{S2}^2 = $' + '{:.4}'.format(peak[18]))
-        #box = p2.get_position()
-        #p2.set_position([box.x0,box.y0,box.width*0.9,box.height])
-        #p2.legend(loc='upper right', bbox_to_anchor = (1.2,1), ncol = 1,prop=fontP)
-        #plt.xlabel('$Wavelength\, [\AA]$',fontsize = 18)
-        #p2.set_xlim(np.min(wave[window]),np.max(wave[window]))
-        #if QSOlens:
-            #p2.set_ylim(-1, np.max(reduced_flux[window]-fit_QSO(wave[window])+1))
 
     plt.savefig(savedir +'/plots/'+SDSSname(obj.RA,obj.DEC)+ '-' + str(obj.plate) + '-' 
         + str(obj.mjd) + '-' + str(obj.fiberid) + '-' + str(n_peak)+ '.eps', format = 'eps', dpi = 2000)
